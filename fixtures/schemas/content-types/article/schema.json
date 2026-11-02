@@ -1,0 +1,43 @@
+{
+	"collectionName": "articles",
+	"info": {
+		"singularName": "article",
+		"pluralName": "articles",
+		"displayName": "Article",
+		"description": "Editorial articles and blog posts"
+	},
+	"options": {
+		"draftAndPublish": true
+	},
+	"attributes": {
+		"title": {
+			"type": "string",
+			"required": true,
+			"maxLength": 200
+		},
+		"slug": {
+			"type": "uid",
+			"targetField": "title",
+			"required": true
+		},
+		"summary": {
+			"type": "text"
+		},
+		"body": {
+			"type": "text"
+		},
+		"status": {
+			"type": "enumeration",
+			"enum": ["draft", "review", "published"]
+		},
+		"authorName": {
+			"type": "string",
+			"required": false
+		},
+		"featuredImage": {
+			"type": "media",
+			"multiple": false,
+			"allowedTypes": ["images"]
+		}
+	}
+}

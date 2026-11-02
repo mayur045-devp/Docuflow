@@ -1,0 +1,27 @@
+{
+	"fieldHints": {
+		"services": {
+			"synonyms": [
+				"what we do",
+				"our expertise",
+				"offerings",
+				"services we offer",
+				"core offerings",
+				"our services"
+			],
+			"description": "List of core services, products or capabilities offered"
+		},
+		"faqs": {
+			"synonyms": [
+				"frequently asked questions",
+				"questions and answers",
+				"common inquiries",
+				"q&a"
+			],
+			"description": "Question and answer list"
+		}
+	},
+	"defaults": {
+		"category": "Cloud & Enterprise"
+	}
+}

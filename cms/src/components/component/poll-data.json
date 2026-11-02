@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_component_poll_data",
+  "info": {
+    "displayName": "PollData"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "position": {
+      "type": "integer"
+    },
+    "Options": {
+      "type": "component",
+      "component": "component.options",
+      "repeatable": false
+    },
+    "isActive": {
+      "type": "boolean"
+    }
+  },
+  "config": {}
+}

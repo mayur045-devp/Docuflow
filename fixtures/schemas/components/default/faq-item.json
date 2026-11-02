@@ -1,0 +1,19 @@
+{
+	"collectionName": "components_default_faq_items",
+	"info": {
+		"displayName": "FAQ Item",
+		"icon": "question",
+		"description": "Question and answer pair"
+	},
+	"options": {},
+	"attributes": {
+		"question": {
+			"type": "string",
+			"required": true
+		},
+		"answer": {
+			"type": "text",
+			"required": true
+		}
+	}
+}

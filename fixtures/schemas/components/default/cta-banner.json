@@ -1,0 +1,22 @@
+{
+	"collectionName": "components_default_cta_banners",
+	"info": {
+		"displayName": "CTA Banner",
+		"icon": "bullhorn"
+	},
+	"options": {},
+	"attributes": {
+		"heading": {
+			"type": "string",
+			"required": true
+		},
+		"buttonText": {
+			"type": "string",
+			"required": true
+		},
+		"buttonLink": {
+			"type": "string",
+			"required": false
+		}
+	}
+}

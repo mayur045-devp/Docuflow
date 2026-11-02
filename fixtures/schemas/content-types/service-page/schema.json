@@ -1,0 +1,57 @@
+{
+	"collectionName": "service_pages",
+	"info": {
+		"singularName": "service-page",
+		"pluralName": "service-pages",
+		"displayName": "Service Page",
+		"description": "Enterprise service pages"
+	},
+	"options": {
+		"draftAndPublish": true
+	},
+	"attributes": {
+		"title": {
+			"type": "string",
+			"required": true,
+			"minLength": 3,
+			"maxLength": 150
+		},
+		"slug": {
+			"type": "uid",
+			"targetField": "title",
+			"required": true
+		},
+		"description": {
+			"type": "blocks",
+			"required": true
+		},
+		"services": {
+			"type": "component",
+			"repeatable": true,
+			"component": "default.service-item",
+			"required": true,
+			"min": 1
+		},
+		"faqs": {
+			"type": "component",
+			"repeatable": true,
+			"component": "default.faq-item",
+			"required": false
+		},
+		"coverImage": {
+			"type": "media",
+			"multiple": false,
+			"required": false,
+			"allowedTypes": ["images"]
+		},
+		"category": {
+			"type": "relation",
+			"relation": "manyToOne",
+			"target": "api::category.category"
+		},
+		"sections": {
+			"type": "dynamiczone",
+			"components": ["default.cta-banner"]
+		}
+	}
+}

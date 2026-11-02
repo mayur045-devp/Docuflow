@@ -1,0 +1,19 @@
+{
+	"collectionName": "components_default_service_items",
+	"info": {
+		"displayName": "Service Item",
+		"icon": "cog",
+		"description": "Single service offering"
+	},
+	"options": {},
+	"attributes": {
+		"title": {
+			"type": "string",
+			"required": true
+		},
+		"description": {
+			"type": "text",
+			"required": true
+		}
+	}
+}
