@@ -11,6 +11,17 @@ export interface ButtonButton extends Struct.ComponentSchema {
 	};
 }
 
+export interface ButtonLinks extends Struct.ComponentSchema {
+	collectionName: 'components_button_links';
+	info: {
+		displayName: 'Links';
+	};
+	attributes: {
+		link: Schema.Attribute.String;
+		name: Schema.Attribute.String;
+	};
+}
+
 export interface ComponentAuthorData extends Struct.ComponentSchema {
 	collectionName: 'components_component_author_data';
 	info: {
@@ -33,6 +44,19 @@ export interface ComponentBanner extends Struct.ComponentSchema {
 		button: Schema.Attribute.Component<'button.button', false>;
 		description: Schema.Attribute.Text;
 		Image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+		title: Schema.Attribute.String;
+	};
+}
+
+export interface ComponentCards extends Struct.ComponentSchema {
+	collectionName: 'components_component_cards';
+	info: {
+		displayName: 'cards';
+	};
+	attributes: {
+		description: Schema.Attribute.Text;
+		Links: Schema.Attribute.Component<'button.links', false>;
+		media: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
 		title: Schema.Attribute.String;
 	};
 }
@@ -120,8 +144,10 @@ declare module '@strapi/strapi' {
 	export namespace Public {
 		export interface ComponentSchemas {
 			'button.button': ButtonButton;
+			'button.links': ButtonLinks;
 			'component.author-data': ComponentAuthorData;
 			'component.banner': ComponentBanner;
+			'component.cards': ComponentCards;
 			'component.content-new': ComponentContentNew;
 			'component.options': ComponentOptions;
 			'component.poll-data': ComponentPollData;

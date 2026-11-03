@@ -130,7 +130,9 @@ export async function POST({ request, getClientAddress }) {
 		contentType: {
 			uid: schema.uid,
 			displayName: schema.displayName,
-			singularName: schema.singularName
+			singularName: schema.singularName,
+			pluralName: schema.pluralName,
+			kind: schema.kind || 'collectionType'
 		},
 		documentSummary,
 		warnings: docModel.warnings

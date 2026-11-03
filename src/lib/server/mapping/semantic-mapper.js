@@ -243,7 +243,7 @@ function scoreMatch(candidateRawKey, targetAttrName, sectionHeading = '', compon
 function formatScalarValue(rawVal, attrDef) {
 	if (rawVal === undefined || rawVal === null) return null;
 	const str = String(rawVal).trim();
-	if (!str) return '';
+	if (!str) return attrDef.type === 'media' && attrDef.multiple ? [] : '';
 
 	switch (attrDef.type) {
 		case 'string':
@@ -305,18 +305,150 @@ function formatScalarValue(rawVal, attrDef) {
 		}
 
 		case 'media': {
-			// Extract img-X
-			const imgMatch = str.match(/img-\d+/);
-			if (imgMatch) return imgMatch[0];
-			return str || null;
+			const matches = Array.from(str.matchAll(/img-\d+/g), (m) => m[0]);
+			if (matches.length > 1) {
+				return matches;
+			}
+			if (matches.length === 1) {
+				return matches[0];
+			}
+			const clean = str.replace(/<[^>]*>/g, '').trim();
+			return clean || null;
 		}
 
-		case 'uid':
-			return generateSlug(str);
+		case 'uid': {
+			const cleanStr = str.replace(/<[^>]*>/g, '').trim();
+			return generateSlug(cleanStr);
+		}
 
 		default:
 			return str;
 	}
+}
+
+/**
+ * Recursively maps component fields from raw field entries.
+ * Supports:
+ * - Direct scalar fields (string, text, media, number, etc.)
+ * - Dotted nested keys (e.g. "button.name", "button.link", "Links.name")
+ * - Nested single components recursively
+ * - Preserving exact casing and field definitions
+ *
+ * @param {any} compSchema Normalized component schema
+ * @param {Record<string, any>} fields Dictionary of raw keys -> values
+ * @param {string} [contextName=''] Parent attribute or component name
+ * @param {Set<string>} [consumedKeys=new Set()] Set of raw keys mapped
+ * @returns {Record<string, any>|null}
+ */
+function mapComponentObject(compSchema, fields, contextName = '', consumedKeys = new Set()) {
+	if (!compSchema || !compSchema.attributes) return null;
+
+	const result = {};
+	let hasAnyData = false;
+
+	// Build normalized lookup
+	const normFields = {};
+	for (const [k, v] of Object.entries(fields)) {
+		normFields[normalizeKey(k)] = { rawKey: k, value: v };
+	}
+
+	for (const [attrName, attr] of Object.entries(compSchema.attributes)) {
+		if (attr.manualOnly) continue;
+
+		const normAttr = normalizeKey(attrName);
+
+		if (attr.type === 'component') {
+			if (!attr.repeatable) {
+				// Nested single component (e.g. "button" inside "cta" or "Links" inside "cards")
+				const subFields = {};
+				const prefixNorm = normAttr;
+
+				for (const [fk, fv] of Object.entries(fields)) {
+					const normFk = normalizeKey(fk);
+					// Dotted key like "button.name" or "Links.name"
+					if (fk.toLowerCase().startsWith(attrName.toLowerCase() + '.')) {
+						const subKey = fk.slice(attrName.length + 1);
+						subFields[subKey] = fv;
+						consumedKeys.add(fk);
+					} else if (normFk.startsWith(prefixNorm) && normFk.length > prefixNorm.length) {
+						// Concatenated key like "buttonname"
+						const subKey = fk.slice(prefixNorm.length);
+						subFields[subKey] = fv;
+						consumedKeys.add(fk);
+					}
+				}
+
+				if (Object.keys(subFields).length > 0) {
+					const subObj = mapComponentObject(attr.schema, subFields, attrName, consumedKeys);
+					if (subObj) {
+						result[attrName] = subObj;
+						hasAnyData = true;
+					} else {
+						result[attrName] = null;
+					}
+				} else {
+					result[attrName] = null;
+				}
+			} else {
+				// Nested repeatable component inside component
+				result[attrName] = [];
+			}
+		} else {
+			// Scalar / Media field
+			// 1. Exact match on raw key (case-sensitive)
+			let val = fields[attrName];
+			let matchedKey = val !== undefined ? attrName : null;
+
+			// 2. Case-insensitive normalized match
+			if (val === undefined && normFields[normAttr]) {
+				val = normFields[normAttr].value;
+				matchedKey = normFields[normAttr].rawKey;
+			}
+
+			// 3. Synonym matching
+			if (val === undefined) {
+				const syns = SYNONYMS[normAttr] || [];
+				for (const s of syns) {
+					const normS = normalizeKey(s);
+					if (normFields[normS]) {
+						val = normFields[normS].value;
+						matchedKey = normFields[normS].rawKey;
+						break;
+					}
+				}
+			}
+
+			// 4. Substring or partial match
+			if (val === undefined) {
+				for (const [fk, fv] of Object.entries(fields)) {
+					if (normalizeKey(fk) === normAttr || normalizeKey(fk).endsWith(`.${normAttr}`)) {
+						val = fv;
+						matchedKey = fk;
+						break;
+					}
+				}
+			}
+
+			if (matchedKey) {
+				consumedKeys.add(matchedKey);
+			}
+
+			if (val !== undefined && val !== null && val !== '') {
+				result[attrName] = formatScalarValue(val, attr);
+				hasAnyData = true;
+			} else {
+				if (attr.type === 'string' || attr.type === 'text') {
+					result[attrName] = '';
+				} else if (attr.type === 'media' && attr.multiple) {
+					result[attrName] = [];
+				} else {
+					result[attrName] = null;
+				}
+			}
+		}
+	}
+
+	return hasAnyData ? result : null;
 }
 
 /**
@@ -514,46 +646,58 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		}
 	}
 
-	// 2. Process Single Components (e.g. seo, AuthorData)
+	// 2. Process Single Components (e.g. seo, AuthorData, HeroSection, Banner)
 	for (const [attrName, attr] of Object.entries(attributes)) {
 		if (attr.type !== 'component' || attr.repeatable || !attr.schema) continue;
 
 		const compSchema = attr.schema;
 		const compAttributes = compSchema.attributes || {};
-		const compData = {};
-		let hasAnyField = false;
 		const compBlockIds = [];
+		const compFields = {};
+		const normAttr = normalizeKey(attrName);
 
+		// First, collect all KVs that belong to this component section or are prefixed with attrName
+		keyValues.forEach((kv, idx) => {
+			const normSec = normalizeKey(kv.section || kv.sectionHeading || '');
+			const isSectionMatch = normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec);
+			const isPrefixed = kv.rawKey.toLowerCase().startsWith(attrName.toLowerCase() + '.');
+
+			if (isSectionMatch || isPrefixed) {
+				const fieldKey = isPrefixed ? kv.rawKey.slice(attrName.length + 1) : kv.rawKey;
+				compFields[fieldKey] = kv.value;
+				if (kv.blockId) compBlockIds.push(kv.blockId);
+				mappedKvIndices.add(idx);
+				if (kv.blockId) mappedBlockIds.add(kv.blockId);
+			}
+		});
+
+		// Fallback for fields not found in section: check global findBestKv
 		for (const [subName, subAttr] of Object.entries(compAttributes)) {
 			if (subAttr.manualOnly) continue;
-
-			// Look for matching KV inside section matching component name or globally
-			const matchRes = findBestKv(subName, attrName, attrName);
-			if (matchRes && matchRes.match.value !== '') {
-				compData[subName] = formatScalarValue(matchRes.match.value, subAttr);
-				hasAnyField = true;
-				if (matchRes.match.blockId) compBlockIds.push(matchRes.match.blockId);
-				fieldNotes.push({
-					path: `${attrName}.${subName}`,
-					confidence: Math.min(1.0, matchRes.score),
-					sourceBlockIds: matchRes.match.blockId ? [matchRes.match.blockId] : [],
-					note: `Mapped component field "${attrName}.${subName}" from "${matchRes.match.rawKey}"`
-				});
-			} else {
-				// Empty typed representation
-				if (subAttr.type === 'string' || subAttr.type === 'text') {
-					compData[subName] = '';
-				} else {
-					compData[subName] = null;
-				}
-				if (subAttr.required) {
-					warnings.push(`Required component field "${attrName}.${subName}" was not found.`);
+			if (compFields[subName] === undefined && compFields[normalizeKey(subName)] === undefined) {
+				const matchRes = findBestKv(subName, attrName, attrName);
+				if (matchRes && matchRes.match.value !== '') {
+					compFields[subName] = matchRes.match.value;
+					if (matchRes.match.blockId) {
+						compBlockIds.push(matchRes.match.blockId);
+						mappedBlockIds.add(matchRes.match.blockId);
+					}
 				}
 			}
 		}
 
-		if (hasAnyField) {
-			data[attrName] = compData;
+		const consumed = new Set();
+		const mappedObj = mapComponentObject(compSchema, compFields, attrName, consumed);
+
+		if (mappedObj) {
+			data[attrName] = mappedObj;
+			for (const bId of compBlockIds) mappedBlockIds.add(bId);
+			fieldNotes.push({
+				path: attrName,
+				confidence: 0.9,
+				sourceBlockIds: [...new Set(compBlockIds)],
+				note: `Mapped single component "${attrName}"`
+			});
 		} else {
 			// Rule B: single component not in document is null
 			data[attrName] = null;
@@ -563,7 +707,7 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		}
 	}
 
-	// 3. Process Repeatable Components (e.g. contentNew, services, faqs)
+	// 3. Process Repeatable Components (e.g. contentNew, services, faqs, cta, cards)
 	for (const [attrName, attr] of Object.entries(attributes)) {
 		if (attr.type !== 'component' || !attr.repeatable || !attr.schema) continue;
 
@@ -636,47 +780,11 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 
 		if (matchingGroup && matchingGroup.records) {
 			for (const rec of matchingGroup.records) {
-				const itemData = {};
-				let itemHasContent = false;
+				const fieldsToMap = { ...(rec.rawFields || {}), ...rec.fields };
+				const consumed = new Set();
+				const itemData = mapComponentObject(compSchema, fieldsToMap, attrName, consumed);
 
-				for (const [subName, subAttr] of Object.entries(compAttributes)) {
-					const normSub = normalizeKey(subName);
-					let matchedVal = rec.fields[normSub];
-
-					// Check synonyms for subfields
-					if (matchedVal === undefined) {
-						if (normSub === 'title') {
-							matchedVal = rec.fields['service'] || rec.fields['offering'] || rec.fields['name'];
-						}
-						const subSyns = SYNONYMS[normSub] || [];
-						for (const s of subSyns) {
-							if (matchedVal !== undefined) break;
-							if (rec.fields[normalizeKey(s)] !== undefined) {
-								matchedVal = rec.fields[normalizeKey(s)];
-								break;
-							}
-						}
-					}
-
-					// Fallback: match by partial key
-					if (matchedVal === undefined) {
-						for (const [fk, fv] of Object.entries(rec.fields)) {
-							if (fk.includes(normSub) || normSub.includes(fk)) {
-								matchedVal = fv;
-								break;
-							}
-						}
-					}
-
-					if (matchedVal !== undefined && matchedVal !== '') {
-						itemData[subName] = formatScalarValue(matchedVal, subAttr);
-						itemHasContent = true;
-					} else {
-						itemData[subName] = subAttr.type === 'string' || subAttr.type === 'text' ? '' : null;
-					}
-				}
-
-				if (itemHasContent) {
+				if (itemData) {
 					items.push(itemData);
 					if (rec.blockIds) compBlockIds.push(...rec.blockIds);
 				}

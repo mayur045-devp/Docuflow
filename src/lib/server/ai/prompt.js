@@ -8,6 +8,25 @@
  * @param {any} [params.contentHints=null] Optional hints from config/hints/
  * @returns {string}
  */
+/**
+ * Helper to recursively describe component attributes in prompt text.
+ * @param {any} compSchema
+ * @returns {string}
+ */
+function describeComponentAttributes(compSchema) {
+	if (!compSchema || !compSchema.attributes) return '';
+	return Object.entries(compSchema.attributes)
+		.filter(([_, sa]) => !sa.manualOnly)
+		.map(([sName, sa]) => {
+			if (sa.type === 'component' && sa.schema?.attributes) {
+				const nestedDesc = describeComponentAttributes(sa.schema);
+				return `${sName} (${sa.repeatable ? 'repeatable component' : 'single component'}: { ${nestedDesc} })`;
+			}
+			return `${sName} (${sa.type}${sa.multiple ? ', multiple' : ''}${sa.required ? ', REQUIRED' : ''})`;
+		})
+		.join(', ');
+}
+
 export function buildExtractionPrompt({
 	contentTypeDef,
 	markdown,
@@ -27,10 +46,7 @@ export function buildExtractionPrompt({
 			}
 
 			if (attr.type === 'component' && attr.schema?.attributes) {
-				const subfields = Object.entries(attr.schema.attributes)
-					.filter(([_, sa]) => !sa.manualOnly)
-					.map(([sName, sa]) => `${sName} (${sa.type}${sa.required ? ', REQUIRED' : ''})`)
-					.join(', ');
+				const subfields = describeComponentAttributes(attr.schema);
 				fieldDescriptions.push(
 					`- "${name}" (${attr.repeatable ? 'repeatable component' : 'single component'}${attr.required ? ', REQUIRED' : ', optional'}): ${attr.repeatable ? 'array of objects with' : 'nested object with'} { ${subfields} }${hintExtra}`
 				);

@@ -191,14 +191,17 @@ export async function POST({ params, request, getClientAddress }) {
 		);
 	}
 
-	const endpoint = schema.pluralName || `${schema.singularName}s`;
+	const isSingleType = schema.kind === 'singleType';
+	const endpoint = isSingleType ? schema.singularName : (schema.pluralName || `${schema.singularName}s`);
 
-	// Duplicate detection: check by slug and title
+	console.log(`[Import] Preparing import for job ${id}: collection=${job.contentTypeUid}, kind=${schema.kind || 'collectionType'}, endpoint=${endpoint}`);
+
+	// Duplicate detection: check by slug and title (collection types only)
 	const slugToCheck = sourceData.slug;
 	const titleToCheck = sourceData.title;
 	let existingEntry = null;
 
-	if (slugToCheck || titleToCheck) {
+	if (!isSingleType && (slugToCheck || titleToCheck)) {
 		try {
 			if (slugToCheck) {
 				existingEntry = await adapter.findByField(endpoint, 'slug', slugToCheck);
@@ -284,25 +287,58 @@ export async function POST({ params, request, getClientAddress }) {
 			if (!val) continue;
 
 			if (attr.type === 'media') {
-				const imageId = typeof val === 'object' && val.$docImage ? val.$docImage : String(val);
-				if (imageId.startsWith('img-')) {
-					const imgFile = getJobImage(id, imageId);
-					if (imgFile) {
-						if (!dryRun) {
-							try {
-								const uploaded = await mediaManager.uploadOrGet(imgFile.buffer, {
-									filename: `${sourceData.slug || 'media'}-${imageId}.${imgFile.mime.includes('jpeg') ? 'jpg' : 'png'}`,
-									mimeType: imgFile.mime,
-									altText: sourceData.title || imageId
-								});
-								dataObj[key] = uploaded.id;
-								resolvedMedia.push({ field: fieldPath, imageId, uploadedId: uploaded.id });
-							} catch (uploadErr) {
-								console.warn(`Image upload failed for ${fieldPath}, proceeding with null media:`, uploadErr);
-								dataObj[key] = null;
+				if (Array.isArray(val)) {
+					const uploadedIds = [];
+					for (let i = 0; i < val.length; i++) {
+						const item = val[i];
+						const imgId = typeof item === 'object' && item?.$docImage ? item.$docImage : String(item);
+						if (imgId.startsWith('img-')) {
+							const imgFile = getJobImage(id, imgId);
+							if (imgFile) {
+								if (!dryRun) {
+									try {
+										const uploaded = await mediaManager.uploadOrGet(imgFile.buffer, {
+											filename: `${sourceData.slug || 'media'}-${imgId}.${imgFile.mime.includes('jpeg') ? 'jpg' : 'png'}`,
+											mimeType: imgFile.mime,
+											altText: sourceData.title || imgId
+										});
+										uploadedIds.push(uploaded.id);
+										resolvedMedia.push({ field: `${fieldPath}.${i}`, imageId: imgId, uploadedId: uploaded.id });
+									} catch (uploadErr) {
+										console.warn(`Image upload failed for ${fieldPath}.${i}:`, uploadErr);
+									}
+								} else {
+									resolvedMedia.push({ field: `${fieldPath}.${i}`, imageId: imgId, status: 'ready_for_upload' });
+								}
 							}
-						} else {
-							resolvedMedia.push({ field: fieldPath, imageId, status: 'ready_for_upload' });
+						} else if (item && typeof item === 'number') {
+							uploadedIds.push(item);
+						}
+					}
+					if (!dryRun) {
+						dataObj[key] = uploadedIds;
+					}
+				} else {
+					const imageId = typeof val === 'object' && val?.$docImage ? val.$docImage : String(val);
+					if (imageId.startsWith('img-')) {
+						const imgFile = getJobImage(id, imageId);
+						if (imgFile) {
+							if (!dryRun) {
+								try {
+									const uploaded = await mediaManager.uploadOrGet(imgFile.buffer, {
+										filename: `${sourceData.slug || 'media'}-${imageId}.${imgFile.mime.includes('jpeg') ? 'jpg' : 'png'}`,
+										mimeType: imgFile.mime,
+										altText: sourceData.title || imageId
+									});
+									dataObj[key] = attr.multiple ? [uploaded.id] : uploaded.id;
+									resolvedMedia.push({ field: fieldPath, imageId, uploadedId: uploaded.id });
+								} catch (uploadErr) {
+									console.warn(`Image upload failed for ${fieldPath}, proceeding with null media:`, uploadErr);
+									dataObj[key] = attr.multiple ? [] : null;
+								}
+							} else {
+								resolvedMedia.push({ field: fieldPath, imageId, status: 'ready_for_upload' });
+							}
 						}
 					}
 				}
@@ -343,20 +379,32 @@ export async function POST({ params, request, getClientAddress }) {
 	updateJobState(id, 'importing');
 
 	try {
+		const method = isSingleType ? 'PUT' : (isUpdating && existingEntry ? 'PUT' : 'POST');
+		console.log(`[Import] Submitting payload to Strapi:`, {
+			displayName: schema.displayName,
+			category: isSingleType ? 'Single Type' : 'Collection Type',
+			apiId: isSingleType ? schema.singularName : schema.pluralName,
+			strapiVersion: adapter.version,
+			endpoint: `/api/${endpoint}`,
+			method,
+			draft: !publish
+		});
+
 		let resultEntry;
 		if (isUpdating && existingEntry) {
 			const targetId = existingEntry.documentId || existingEntry.id;
-			resultEntry = await adapter.update(endpoint, targetId, payload, { draft: !publish });
+			resultEntry = await adapter.update(endpoint, targetId, payload, { draft: !publish, isSingleType });
 		} else {
-			resultEntry = await adapter.create(endpoint, payload, { draft: !publish });
+			resultEntry = await adapter.create(endpoint, payload, { draft: !publish, isSingleType });
 		}
 
 		if (publish) {
 			const publishTarget = resultEntry.documentId || resultEntry.id;
-			await adapter.publish(endpoint, publishTarget);
+			await adapter.publish(endpoint, publishTarget, { isSingleType });
 		}
 
-		const adminUrl = adapter.adminLink(resultEntry, schema.singularName);
+		const adminUrl = adapter.adminLink(resultEntry, schema.singularName, schema.kind, schema.uid);
+		console.log(`[Import] Import successful for job ${id}: entryId=${resultEntry.id}, documentId=${resultEntry.documentId || 'n/a'}, adminUrl=${adminUrl}`);
 
 		const finalResult = {
 			success: true,
@@ -378,17 +426,35 @@ export async function POST({ params, request, getClientAddress }) {
 		return json(finalResult);
 	} catch (err) {
 		const is401 = err && /** @type {any} */ (err).status === 401;
-		const errMsg = is401
-			? `Strapi authentication failed (401 Unauthorized: Missing or invalid credentials). Please verify that STRAPI_API_TOKEN in your .env file is valid and has Full Access permissions in Strapi Settings > API Tokens (or run "npm run strapi:token" if using local CMS).`
-			: err instanceof Error
-				? err.message
-				: String(err);
+		const is404 = err && /** @type {any} */ (err).status === 404;
+		const typeLabel = isSingleType ? 'Single Type' : 'Collection Type';
+		const apiId = isSingleType ? schema.singularName : (schema.pluralName || `${schema.singularName}s`);
+
+		let errMsg;
+		if (is401) {
+			errMsg = `Strapi authentication failed (401 Unauthorized: Missing or invalid credentials). Please verify that STRAPI_API_TOKEN in your .env file is valid and has Full Access permissions in Strapi Settings > API Tokens (or run "npm run strapi:token" if using local CMS).`;
+		} else if (is404) {
+			errMsg = `Strapi ${typeLabel} endpoint "/api/${endpoint}" was not found (404 Not Found). Please verify that the ${typeLabel.toLowerCase()} "${schema.displayName || schema.singularName}" exists (API ID: "${apiId}") and is accessible in your Strapi CMS.`;
+		} else {
+			errMsg = err instanceof Error ? err.message : String(err);
+		}
+
+		console.error(`[Import Error] Failed for job ${id}:`, {
+			displayName: schema.displayName,
+			category: typeLabel,
+			apiId,
+			strapiVersion: adapter.version,
+			endpoint: `/api/${endpoint}`,
+			method: isSingleType ? 'PUT' : 'POST',
+			status: (err && /** @type {any} */ (err).status) || 500,
+			message: errMsg
+		});
+
 		updateJobState(id, 'failed', { error: errMsg });
-		console.error(`Import failed for job ${id}:`, err);
 		return json(
 			{
 				error: {
-					code: is401 ? 'STRAPI_UNAUTHORIZED' : 'STRAPI_IMPORT_ERROR',
+					code: is401 ? 'STRAPI_UNAUTHORIZED' : is404 ? 'STRAPI_ENDPOINT_NOT_FOUND' : 'STRAPI_IMPORT_ERROR',
 					message: errMsg,
 					details: (err && /** @type {any} */ (err).details) || undefined
 				}

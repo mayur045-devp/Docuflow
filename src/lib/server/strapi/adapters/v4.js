@@ -6,18 +6,19 @@ export const v4Adapter = {
 
 	/**
 	 * Creates an entry in Strapi 4. Draft entries have `publishedAt: null`.
-	 * @param {string} endpoint Plural endpoint name e.g. "service-pages"
+	 * For single types, Strapi uses PUT /api/{endpoint}.
+	 * @param {string} endpoint Plural or singular endpoint name e.g. "service-pages" or "mayur"
 	 * @param {any} data
-	 * @param {{ draft?: boolean }} [options]
+	 * @param {{ draft?: boolean, isSingleType?: boolean }} [options]
 	 */
-	async create(endpoint, data, { draft = true } = {}) {
+	async create(endpoint, data, { draft = true, isSingleType = false } = {}) {
 		const payload = {
 			...data,
 			...(draft ? { publishedAt: null } : { publishedAt: new Date().toISOString() })
 		};
 
 		const res = await strapiFetch(`/api/${endpoint}`, {
-			method: 'POST',
+			method: isSingleType ? 'PUT' : 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ data: payload })
 		});
@@ -26,25 +27,44 @@ export const v4Adapter = {
 	},
 
 	/**
-	 * Updates an existing entry by numeric ID in Strapi 4.
+	 * Updates an existing entry in Strapi 4.
+	 * For collection types, updates by numeric ID.
+	 * For single types, updates via PUT /api/{endpoint}.
 	 * @param {string} endpoint
 	 * @param {number|string} id Numeric id
 	 * @param {any} data
-	 * @param {{ draft?: boolean }} [options]
+	 * @param {{ draft?: boolean, isSingleType?: boolean }} [options]
 	 */
-	async update(endpoint, id, data, { draft = true } = {}) {
+	async update(endpoint, id, data, { draft = true, isSingleType = false } = {}) {
 		const payload = {
 			...data,
 			...(draft ? { publishedAt: null } : {})
 		};
+		const url = isSingleType ? `/api/${endpoint}` : `/api/${endpoint}/${id}`;
 
-		const res = await strapiFetch(`/api/${endpoint}/${id}`, {
+		const res = await strapiFetch(url, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ data: payload })
 		});
 
 		return this.normalizeEntry(res);
+	},
+
+	/**
+	 * Fetches a single type entry in Strapi 4.
+	 * @param {string} endpoint
+	 */
+	async getSingle(endpoint) {
+		try {
+			const res = await strapiFetch(`/api/${endpoint}?publicationState=preview`);
+			if (res?.data) {
+				return this.normalizeEntry(res);
+			}
+			return null;
+		} catch {
+			return null;
+		}
 	},
 
 	/**
@@ -80,10 +100,12 @@ export const v4Adapter = {
 	/**
 	 * Explicitly publishes an entry in Strapi 4 by setting publishedAt timestamp.
 	 * @param {string} endpoint
-	 * @param {number|string} id
+	 * @param {number|string} [id]
+	 * @param {{ isSingleType?: boolean }} [options]
 	 */
-	async publish(endpoint, id) {
-		const res = await strapiFetch(`/api/${endpoint}/${id}`, {
+	async publish(endpoint, id, { isSingleType = false } = {}) {
+		const url = isSingleType ? `/api/${endpoint}` : `/api/${endpoint}/${id}`;
+		const res = await strapiFetch(url, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -112,12 +134,18 @@ export const v4Adapter = {
 	 * Generates a direct URL to the entry in Strapi Admin UI.
 	 * @param {any} entry
 	 * @param {string} singularName
+	 * @param {'collectionType'|'singleType'} [kind='collectionType']
+	 * @param {string} [uid='']
 	 */
-	adminLink(entry, singularName) {
+	adminLink(entry, singularName, kind = 'collectionType', uid = '') {
 		const { STRAPI_URL, STRAPI_ADMIN_URL } = getEnv();
 		const base = STRAPI_ADMIN_URL || `${STRAPI_URL}/admin`;
+		const typeUid = uid || `api::${singularName}.${singularName}`;
+		if (kind === 'singleType') {
+			return `${base}/content-manager/singleType/${typeUid}`;
+		}
 		const id = entry?.id;
-		return `${base}/content-manager/collectionType/api::${singularName}.${singularName}/${id}`;
+		return `${base}/content-manager/collectionType/${typeUid}/${id}`;
 	},
 
 	/**

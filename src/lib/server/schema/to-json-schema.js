@@ -64,6 +64,13 @@ export function attributeToJsonSchema(attr) {
 			};
 
 		case 'media':
+			if (attr.multiple) {
+				return {
+					type: 'ARRAY',
+					description: `${description}. Return array of imageId strings extracted from the document (e.g. ["img-1", "img-2"]), or empty array if no relevant images.`,
+					items: { type: 'STRING' }
+				};
+			}
 			return {
 				type: 'STRING',
 				description: `${description}. Return the exact imageId extracted from the document (e.g. "img-1"), or empty string if no relevant image.`

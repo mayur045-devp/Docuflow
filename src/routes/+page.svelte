@@ -21,6 +21,13 @@
 		contentTypes.find((ct) => ct.uid === selectedContentTypeUid) || null
 	);
 
+	let collectionTypes = $derived(
+		contentTypes.filter((ct) => (ct.kind || 'collectionType') === 'collectionType')
+	);
+	let singleTypes = $derived(
+		contentTypes.filter((ct) => ct.kind === 'singleType')
+	);
+
 	async function onSelectCollection(uid) {
 		selectedContentTypeUid = uid;
 		try {
@@ -215,7 +222,7 @@
 						for="content-type-picker"
 						class="block text-xs font-semibold tracking-wider text-slate-300 uppercase"
 					>
-						1. Target Strapi Collection
+						1. Target Strapi Content Type
 					</label>
 					<button
 						type="button"
@@ -246,11 +253,24 @@
 						onchange={(e) => onSelectCollection(e.currentTarget.value)}
 						class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white transition focus:border-indigo-500 focus:outline-none"
 					>
-						{#each contentTypes as ct}
-							<option value={ct.uid}>
-								{ct.displayName || ct.singularName} &bull; /api/{ct.pluralName || ct.singularName}
-							</option>
-						{/each}
+						{#if collectionTypes.length > 0}
+							<optgroup label="Collection Types" class="bg-slate-900 font-semibold text-indigo-300">
+								{#each collectionTypes as ct}
+									<option value={ct.uid} class="bg-slate-950 font-normal text-white">
+										{ct.displayName || ct.singularName} &bull; /api/{ct.pluralName || ct.singularName}
+									</option>
+								{/each}
+							</optgroup>
+						{/if}
+						{#if singleTypes.length > 0}
+							<optgroup label="Single Types" class="bg-slate-900 font-semibold text-emerald-300">
+								{#each singleTypes as st}
+									<option value={st.uid} class="bg-slate-950 font-normal text-white">
+										{st.displayName || st.singularName} &bull; /api/{st.singularName}
+									</option>
+								{/each}
+							</optgroup>
+						{/if}
 					</select>
 
 					<!-- Schema Overview Card -->
@@ -264,7 +284,16 @@
 									<span
 										class="rounded border border-indigo-900 bg-indigo-950 px-2 py-0.5 font-mono text-[10px] text-indigo-400"
 									>
-										/api/{selectedContentType.pluralName}
+										/api/{selectedContentType.kind === 'singleType'
+											? selectedContentType.singularName
+											: (selectedContentType.pluralName || selectedContentType.singularName)}
+									</span>
+									<span
+										class="rounded border px-2 py-0.5 text-[10px] font-semibold {selectedContentType.kind === 'singleType'
+											? 'border-emerald-900 bg-emerald-950/60 text-emerald-400'
+											: 'border-indigo-900 bg-indigo-950/60 text-indigo-400'}"
+									>
+										{selectedContentType.kind === 'singleType' ? 'Single Type' : 'Collection Type'}
 									</span>
 								</div>
 								{#if selectedContentType.draftAndPublish}
@@ -395,10 +424,13 @@
 			<div class="flex items-center justify-between border-b border-slate-800 pb-4">
 				<div>
 					<h3 class="text-base font-bold text-white">{uploadedJob.fileInfo?.name}</h3>
-					<p class="font-mono text-xs text-slate-400">
-						Target: <span class="text-indigo-400">{uploadedJob.contentType?.displayName}</span>
-						&bull; SHA-256: {uploadedJob.fileInfo?.sha256?.substring(0, 12)}...
-					</p>
+					<div class="flex items-center gap-2 font-mono text-xs text-slate-400">
+						<span>Target: <span class="text-indigo-400 font-semibold">{selectedContentType?.displayName || uploadedJob.contentType?.displayName}</span></span>
+						<span class="rounded border px-1.5 py-0.5 text-[9px] font-semibold {selectedContentType?.kind === 'singleType' ? 'border-emerald-800 bg-emerald-950/60 text-emerald-400' : 'border-indigo-800 bg-indigo-950/60 text-indigo-400'}">
+							{selectedContentType?.kind === 'singleType' ? 'Single Type' : 'Collection Type'}
+						</span>
+						<span>&bull; SHA-256: {uploadedJob.fileInfo?.sha256?.substring(0, 12)}...</span>
+					</div>
 				</div>
 				<button
 					type="button"
@@ -412,14 +444,14 @@
 				</button>
 			</div>
 
-			<!-- Target Collection Selector (Switchable before extraction) -->
+			<!-- Target Content Type Selector (Switchable before extraction) -->
 			<div class="space-y-2 rounded-xl border border-slate-800 bg-slate-950 p-4">
 				<div class="flex items-center justify-between">
 					<label
 						for="pre-extract-collection"
 						class="block text-xs font-semibold tracking-wider text-slate-300 uppercase"
 					>
-						Target Strapi Collection (Change before extraction if needed)
+						Target Strapi Content Type (Change before extraction if needed)
 					</label>
 					{#if selectedContentType?.draftAndPublish}
 						<span
@@ -435,11 +467,24 @@
 					onchange={(e) => onSelectCollection(e.currentTarget.value)}
 					class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
 				>
-					{#each contentTypes as ct}
-						<option value={ct.uid}>
-							{ct.displayName || ct.singularName} &bull; /api/{ct.pluralName || ct.singularName}
-						</option>
-					{/each}
+					{#if collectionTypes.length > 0}
+						<optgroup label="Collection Types" class="bg-slate-900 font-semibold text-indigo-300">
+							{#each collectionTypes as ct}
+								<option value={ct.uid} class="bg-slate-950 font-normal text-white">
+									{ct.displayName || ct.singularName} &bull; /api/{ct.pluralName || ct.singularName}
+								</option>
+							{/each}
+						</optgroup>
+					{/if}
+					{#if singleTypes.length > 0}
+						<optgroup label="Single Types" class="bg-slate-900 font-semibold text-emerald-300">
+							{#each singleTypes as st}
+								<option value={st.uid} class="bg-slate-950 font-normal text-white">
+									{st.displayName || st.singularName} &bull; /api/{st.singularName}
+								</option>
+							{/each}
+						</optgroup>
+					{/if}
 				</select>
 			</div>
 

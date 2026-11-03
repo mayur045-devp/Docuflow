@@ -396,6 +396,28 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
 	};
 }
 
+export interface ApiAbcdAbcd extends Struct.SingleTypeSchema {
+	collectionName: 'abcds';
+	info: {
+		displayName: 'abcd';
+		pluralName: 'abcds';
+		singularName: 'abcd';
+	};
+	options: {
+		draftAndPublish: true;
+	};
+	attributes: {
+		createdAt: Schema.Attribute.DateTime;
+		createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+		locale: Schema.Attribute.String & Schema.Attribute.Private;
+		localizations: Schema.Attribute.Relation<'oneToMany', 'api::abcd.abcd'> &
+			Schema.Attribute.Private;
+		publishedAt: Schema.Attribute.DateTime;
+		updatedAt: Schema.Attribute.DateTime;
+		updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+	};
+}
+
 export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
 	collectionName: 'articles';
 	info: {
@@ -463,7 +485,7 @@ export interface ApiBlogBlog extends Struct.CollectionTypeSchema {
 export interface ApiMayurMayur extends Struct.SingleTypeSchema {
 	collectionName: 'mayurs';
 	info: {
-		displayName: 'Mayur';
+		displayName: 'Mayurs';
 		pluralName: 'mayurs';
 		singularName: 'mayur';
 	};
@@ -472,14 +494,19 @@ export interface ApiMayurMayur extends Struct.SingleTypeSchema {
 	};
 	attributes: {
 		Banner: Schema.Attribute.Component<'component.banner', false>;
+		cards: Schema.Attribute.Component<'component.cards', true>;
+		CardTitle: Schema.Attribute.String;
 		createdAt: Schema.Attribute.DateTime;
 		createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
 		cta: Schema.Attribute.Component<'cta.cta', true>;
+		description: Schema.Attribute.Text;
 		HeroSection: Schema.Attribute.Component<'hero.hero-section', false>;
 		locale: Schema.Attribute.String & Schema.Attribute.Private;
 		localizations: Schema.Attribute.Relation<'oneToMany', 'api::mayur.mayur'> &
 			Schema.Attribute.Private;
+		name: Schema.Attribute.String;
 		publishedAt: Schema.Attribute.DateTime;
+		slug: Schema.Attribute.UID;
 		thumbnailImages: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
 		updatedAt: Schema.Attribute.DateTime;
 		updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
@@ -949,6 +976,7 @@ declare module '@strapi/strapi' {
 			'admin::transfer-token': AdminTransferToken;
 			'admin::transfer-token-permission': AdminTransferTokenPermission;
 			'admin::user': AdminUser;
+			'api::abcd.abcd': ApiAbcdAbcd;
 			'api::article.article': ApiArticleArticle;
 			'api::blog.blog': ApiBlogBlog;
 			'api::mayur.mayur': ApiMayurMayur;

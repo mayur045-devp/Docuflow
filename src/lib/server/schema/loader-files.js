@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { normalizeContentType } from './normalize.js';
 
 /**
@@ -88,6 +89,53 @@ export function loadSchemasFromFiles(rootPath) {
 				} catch {
 					// Ignore invalid JSON
 				}
+			}
+		}
+	}
+
+	// 2.5. Discover plugin content types (e.g. plugin::users-permissions.user)
+	const userExtPath = path.join(
+		rootPath,
+		'src',
+		'extensions',
+		'users-permissions',
+		'content-types',
+		'user',
+		'schema.json'
+	);
+	if (fs.existsSync(userExtPath)) {
+		try {
+			const content = JSON.parse(fs.readFileSync(userExtPath, 'utf8'));
+			content.uid = 'plugin::users-permissions.user';
+			content.kind = content.kind || 'collectionType';
+			rawContentTypes['plugin::users-permissions.user'] = content;
+		} catch {
+			// Ignore invalid JSON
+		}
+	} else {
+		const userPluginPath = path.join(
+			rootPath,
+			'node_modules',
+			'@strapi',
+			'plugin-users-permissions',
+			'dist',
+			'server',
+			'content-types',
+			'user',
+			'index.js'
+		);
+		if (fs.existsSync(userPluginPath)) {
+			try {
+				const req = createRequire(import.meta.url);
+				const userMod = req(path.resolve(userPluginPath));
+				const userRaw = userMod.__require ? userMod.__require() : userMod;
+				if (userRaw && userRaw.attributes) {
+					userRaw.uid = 'plugin::users-permissions.user';
+					userRaw.kind = userRaw.kind || 'collectionType';
+					rawContentTypes['plugin::users-permissions.user'] = userRaw;
+				}
+			} catch {
+				// Ignore load error
 			}
 		}
 	}

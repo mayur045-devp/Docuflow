@@ -55,6 +55,34 @@ describe('Strapi Client and Adapters', () => {
 				}
 			}
 
+			if (urlStr.includes('/api/mayur')) {
+				if (method === 'PUT') {
+					const id = 100;
+					const docId = 'doc-mayur-100';
+					const isV5Draft = urlStr.includes('status=draft');
+					const isV4Draft = body.data?.publishedAt === null;
+
+					const entry = {
+						id,
+						documentId: docId,
+						...body.data,
+						publishedAt: isV5Draft || isV4Draft ? null : new Date().toISOString()
+					};
+
+					let resData;
+					if (currentVersion === '4') {
+						resData = { id: entry.id, attributes: { ...body.data, publishedAt: entry.publishedAt } };
+					} else {
+						resData = entry;
+					}
+
+					return new Response(JSON.stringify({ data: resData }), {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' }
+					});
+				}
+			}
+
 			return new Response(JSON.stringify({ data: [] }), {
 				status: 200,
 				headers: { 'Content-Type': 'application/json' }
@@ -106,6 +134,36 @@ describe('Strapi Client and Adapters', () => {
 		// Strapi 5: { connect: [{ documentId: "doc-42" }] }
 		const v5Rel = v5Adapter.formatRelation({ documentId: 'doc-42' });
 		expect(v5Rel).toEqual({ connect: [{ documentId: 'doc-42' }] });
+	});
+
+	it('creates and updates Single Type entries via PUT in Strapi 5 mode', async () => {
+		currentVersion = '5';
+
+		const result = await v5Adapter.create(
+			'mayur',
+			{ name: 'Testing of Automation Tool.' },
+			{ draft: true, isSingleType: true }
+		);
+
+		expect(result).toBeDefined();
+		expect(result.id).toBe(100);
+		expect(result.documentId).toBe('doc-mayur-100');
+		expect(result.attributes.name).toBe('Testing of Automation Tool.');
+	});
+
+	it('creates and updates Single Type entries via PUT in Strapi 4 mode', async () => {
+		currentVersion = '4';
+
+		const result = await v4Adapter.create(
+			'mayur',
+			{ name: 'Testing of Automation Tool.' },
+			{ draft: true, isSingleType: true }
+		);
+
+		expect(result).toBeDefined();
+		expect(result.id).toBe(100);
+		expect(result.attributes.name).toBe('Testing of Automation Tool.');
+		expect(result.attributes.publishedAt).toBeNull();
 	});
 
 	it('normalizes Strapi validation errors with field paths', () => {

@@ -4,13 +4,22 @@
   "info": {
     "singularName": "mayur",
     "pluralName": "mayurs",
-    "displayName": "Mayur"
+    "displayName": "Mayurs"
   },
   "options": {
     "draftAndPublish": true
   },
   "pluginOptions": {},
   "attributes": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "text"
+    },
+    "slug": {
+      "type": "uid"
+    },
     "HeroSection": {
       "type": "component",
       "component": "hero.hero-section",
@@ -21,11 +30,6 @@
       "component": "cta.cta",
       "repeatable": true
     },
-    "Banner": {
-      "type": "component",
-      "component": "component.banner",
-      "repeatable": false
-    },
     "thumbnailImages": {
       "type": "media",
       "multiple": true,
@@ -35,6 +39,19 @@
         "videos",
         "audios"
       ]
+    },
+    "Banner": {
+      "type": "component",
+      "component": "component.banner",
+      "repeatable": false
+    },
+    "CardTitle": {
+      "type": "string"
+    },
+    "cards": {
+      "type": "component",
+      "component": "component.cards",
+      "repeatable": true
     }
   }
 }

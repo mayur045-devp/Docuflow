@@ -77,11 +77,15 @@ export function attributeToZod(attr) {
 		}
 
 		case 'media': {
-			// Can be string imageId, number uploaded id, object, or null
-			schema = z.union([
+			// Can be string imageId, number uploaded id, array of imageIds/numbers, object, or null
+			const mediaItem = z.union([
 				z.string(),
 				z.number(),
-				z.record(z.string(), z.any()),
+				z.record(z.string(), z.any())
+			]);
+			schema = z.union([
+				mediaItem,
+				z.array(mediaItem),
 				z.null(),
 				z.undefined()
 			]);

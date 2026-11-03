@@ -14,9 +14,10 @@ exports.default = {
                 handler: async (ctx) => {
                     const contentTypes = {};
                     for (const [uid, ct] of Object.entries(strapi.contentTypes)) {
-                        if (uid.startsWith('api::')) {
+                        if (uid.startsWith('api::') || uid === 'plugin::users-permissions.user') {
                             contentTypes[uid] = {
                                 uid,
+                                kind: ct.kind || 'collectionType',
                                 collectionName: ct.collectionName,
                                 info: ct.info,
                                 options: ct.options,

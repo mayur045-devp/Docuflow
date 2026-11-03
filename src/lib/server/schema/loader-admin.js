@@ -117,8 +117,8 @@ export async function loadSchemasFromAdmin({ forceRefresh = false } = {}) {
 		const contentTypes = {};
 		for (const ct of rawContentTypesList) {
 			const uid = ct.uid;
-			// Filter out plugin / admin system content types
-			if (uid && uid.startsWith('api::')) {
+			// Include API content types and plugin::users-permissions.user
+			if (uid && (uid.startsWith('api::') || uid === 'plugin::users-permissions.user')) {
 				const rawSchema = ct.schema || ct;
 				contentTypes[uid] = normalizeContentType(rawSchema, componentRegistry);
 			}

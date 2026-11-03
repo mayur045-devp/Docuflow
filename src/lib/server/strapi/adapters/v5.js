@@ -6,15 +6,16 @@ export const v5Adapter = {
 
 	/**
 	 * Creates an entry in Strapi 5. Drafts are created using ?status=draft query param.
-	 * @param {string} endpoint Plural endpoint name e.g. "service-pages"
+	 * For single types, Strapi uses PUT /api/{endpoint}.
+	 * @param {string} endpoint Plural or singular endpoint name e.g. "service-pages" or "mayur"
 	 * @param {any} data
-	 * @param {{ draft?: boolean }} [options]
+	 * @param {{ draft?: boolean, isSingleType?: boolean }} [options]
 	 */
-	async create(endpoint, data, { draft = true } = {}) {
+	async create(endpoint, data, { draft = true, isSingleType = false } = {}) {
 		const url = `/api/${endpoint}${draft ? '?status=draft' : ''}`;
 
 		const res = await strapiFetch(url, {
-			method: 'POST',
+			method: isSingleType ? 'PUT' : 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ data })
 		});
@@ -23,14 +24,17 @@ export const v5Adapter = {
 	},
 
 	/**
-	 * Updates an entry in Strapi 5 by documentId.
+	 * Updates an entry in Strapi 5.
+	 * For collection types, updates by documentId.
+	 * For single types, updates via PUT /api/{endpoint}.
 	 * @param {string} endpoint
 	 * @param {string|number} documentId
 	 * @param {any} data
-	 * @param {{ draft?: boolean }} [options]
+	 * @param {{ draft?: boolean, isSingleType?: boolean }} [options]
 	 */
-	async update(endpoint, documentId, data, { draft = true } = {}) {
-		const url = `/api/${endpoint}/${documentId}${draft ? '?status=draft' : ''}`;
+	async update(endpoint, documentId, data, { draft = true, isSingleType = false } = {}) {
+		const target = isSingleType ? `/api/${endpoint}` : `/api/${endpoint}/${documentId}`;
+		const url = `${target}${draft ? '?status=draft' : ''}`;
 
 		const res = await strapiFetch(url, {
 			method: 'PUT',
@@ -39,6 +43,22 @@ export const v5Adapter = {
 		});
 
 		return this.normalizeEntry(res);
+	},
+
+	/**
+	 * Fetches a single type entry.
+	 * @param {string} endpoint
+	 */
+	async getSingle(endpoint) {
+		try {
+			const res = await strapiFetch(`/api/${endpoint}?status=draft`);
+			if (res?.data) {
+				return this.normalizeEntry(res);
+			}
+			return null;
+		} catch {
+			return null;
+		}
 	},
 
 	/**
@@ -77,12 +97,31 @@ export const v5Adapter = {
 	},
 
 	/**
-	 * Publishes an entry by documentId in Strapi 5.
+	 * Publishes an entry in Strapi 5.
+	 * For collection types, publishes by documentId.
+	 * For single types, publishes via actions/publish or status=published.
 	 * @param {string} endpoint
-	 * @param {string|number} documentId
+	 * @param {string|number} [documentId]
+	 * @param {{ isSingleType?: boolean }} [options]
 	 */
-	async publish(endpoint, documentId) {
-		// Strapi 5 publish action endpoint or PUT with status=published
+	async publish(endpoint, documentId, { isSingleType = false } = {}) {
+		if (isSingleType) {
+			try {
+				const res = await strapiFetch(`/api/${endpoint}/actions/publish`, {
+					method: 'POST'
+				});
+				return this.normalizeEntry(res);
+			} catch {
+				const res = await strapiFetch(`/api/${endpoint}?status=published`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ data: {} })
+				});
+				return this.normalizeEntry(res);
+			}
+		}
+
+		// Collection type
 		try {
 			const res = await strapiFetch(`/api/${endpoint}/${documentId}/actions/publish`, {
 				method: 'POST'
@@ -120,12 +159,18 @@ export const v5Adapter = {
 	 * Generates a direct URL to the entry in Strapi Admin UI.
 	 * @param {any} entry
 	 * @param {string} singularName
+	 * @param {'collectionType'|'singleType'} [kind='collectionType']
+	 * @param {string} [uid='']
 	 */
-	adminLink(entry, singularName) {
+	adminLink(entry, singularName, kind = 'collectionType', uid = '') {
 		const { STRAPI_URL, STRAPI_ADMIN_URL } = getEnv();
 		const base = STRAPI_ADMIN_URL || `${STRAPI_URL}/admin`;
+		const typeUid = uid || `api::${singularName}.${singularName}`;
+		if (kind === 'singleType') {
+			return `${base}/content-manager/single-types/${typeUid}`;
+		}
 		const targetId = entry?.documentId || entry?.id;
-		return `${base}/content-manager/collection-types/api::${singularName}.${singularName}/${targetId}`;
+		return `${base}/content-manager/collection-types/${typeUid}/${targetId}`;
 	},
 
 	/**

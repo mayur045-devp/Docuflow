@@ -104,8 +104,10 @@ export function buildStrapiPayload(rawData, contentTypeDef, adapter, options = {
 			}
 
 			case 'media': {
-				// Can be an uploaded numeric id, documentId string, or { $docImage: "img-1" }
-				if (typeof value === 'object' && value?.$docImage) {
+				// Can be an uploaded numeric id, documentId string, { $docImage: "img-1" }, or an array of these
+				if (Array.isArray(value)) {
+					payload[key] = value.filter((v) => v !== null && v !== undefined && v !== '');
+				} else if (typeof value === 'object' && value?.$docImage) {
 					payload[key] = value;
 				} else if (typeof value === 'number' || (typeof value === 'string' && value.trim())) {
 					payload[key] = value;

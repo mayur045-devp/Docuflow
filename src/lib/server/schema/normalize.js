@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 const SYSTEM_FIELDS = new Set([
 	'id',
 	'documentId',
@@ -200,12 +203,38 @@ export function normalizeContentType(raw, componentRegistry = {}, visited = new 
 		}
 	}
 
+	// Determine content-type category (collectionType vs singleType) from metadata or disk fallback
+	let resolvedKind = raw.kind;
+	if (!resolvedKind) {
+		const singular = info.singularName || raw.collectionName;
+		if (singular) {
+			const candidateFiles = [
+				path.resolve('cms/src/api', singular, 'content-types', singular, 'schema.json'),
+				path.resolve('cms/dist/src/api', singular, 'content-types', singular, 'schema.json')
+			];
+			for (const cf of candidateFiles) {
+				if (fs.existsSync(cf)) {
+					try {
+						const diskJson = JSON.parse(fs.readFileSync(cf, 'utf8'));
+						if (diskJson.kind) {
+							resolvedKind = diskJson.kind;
+							break;
+						}
+					} catch {
+						// ignore
+					}
+				}
+			}
+		}
+	}
+	resolvedKind = resolvedKind || 'collectionType';
+
 	return {
 		uid:
 			raw.uid ||
 			(info.singularName ? `api::${info.singularName}.${info.singularName}` : raw.collectionName),
 		collectionName: raw.collectionName || '',
-		kind: raw.kind || 'collectionType',
+		kind: resolvedKind,
 		displayName: info.displayName || info.singularName || 'Untitled',
 		singularName: info.singularName || '',
 		pluralName: info.pluralName || `${info.singularName || 'item'}s`,
