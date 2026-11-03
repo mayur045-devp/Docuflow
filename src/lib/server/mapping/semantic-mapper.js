@@ -252,6 +252,16 @@ function formatScalarValue(rawVal, attrDef) {
 			return str.replace(/<[^>]*>/g, '').trim();
 
 		case 'text':
+			if (str.includes('<table') || str.includes('<ul') || str.includes('<ol') || str.includes('<h')) {
+				return str;
+			}
+			// Strip HTML tags for plain text / long text fields, converting paragraphs to newlines
+			return str
+				.replace(/<\/p>\s*<p>/gi, '\n\n')
+				.replace(/<br\s*\/?>/gi, '\n')
+				.replace(/<[^>]*>/g, '')
+				.trim();
+
 		case 'richtext':
 		case 'blocks':
 			// If already has HTML tags, return cleaned
@@ -297,11 +307,12 @@ function formatScalarValue(rawVal, attrDef) {
 		}
 
 		case 'enumeration': {
+			const clean = str.replace(/<[^>]*>/g, '').trim();
 			if (Array.isArray(attrDef.enum) && attrDef.enum.length > 0) {
-				const match = attrDef.enum.find((e) => normalizeKey(e) === normalizeKey(str));
-				return match || str;
+				const match = attrDef.enum.find((e) => normalizeKey(e) === normalizeKey(clean));
+				return match || clean;
 			}
-			return str;
+			return clean;
 		}
 
 		case 'media': {
@@ -337,10 +348,20 @@ function formatScalarValue(rawVal, attrDef) {
  * @param {any} compSchema Normalized component schema
  * @param {Record<string, any>} fields Dictionary of raw keys -> values
  * @param {string} [contextName=''] Parent attribute or component name
+ * @param {any} compSchema Normalized component schema
+ * @param {Record<string, any>} fields Dictionary of raw keys -> values
+ * @param {string} [contextName=''] Parent attribute or component name
  * @param {Set<string>} [consumedKeys=new Set()] Set of raw keys mapped
+ * @param {any} [docContext=null] Optional full document context for nested components
  * @returns {Record<string, any>|null}
  */
-function mapComponentObject(compSchema, fields, contextName = '', consumedKeys = new Set()) {
+function mapComponentObject(
+	compSchema,
+	fields,
+	contextName = '',
+	consumedKeys = new Set(),
+	docContext = null
+) {
 	if (!compSchema || !compSchema.attributes) return null;
 
 	const result = {};
@@ -378,8 +399,21 @@ function mapComponentObject(compSchema, fields, contextName = '', consumedKeys =
 					}
 				}
 
+				// If not found in fields, check docContext keyValues matching attrName
+				if (Object.keys(subFields).length === 0 && docContext?.keyValues) {
+					docContext.keyValues.forEach((kv, idx) => {
+						if (docContext.mappedKvIndices?.has(idx)) return;
+						const normSec = normalizeKey(kv.sectionHeading || kv.section || '');
+						if (normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec)) {
+							subFields[kv.rawKey] = kv.value;
+							if (docContext.mappedKvIndices) docContext.mappedKvIndices.add(idx);
+							if (kv.blockId && docContext.mappedBlockIds) docContext.mappedBlockIds.add(kv.blockId);
+						}
+					});
+				}
+
 				if (Object.keys(subFields).length > 0) {
-					const subObj = mapComponentObject(attr.schema, subFields, attrName, consumedKeys);
+					const subObj = mapComponentObject(attr.schema, subFields, attrName, consumedKeys, docContext);
 					if (subObj) {
 						result[attrName] = subObj;
 						hasAnyData = true;
@@ -390,8 +424,100 @@ function mapComponentObject(compSchema, fields, contextName = '', consumedKeys =
 					result[attrName] = null;
 				}
 			} else {
-				// Nested repeatable component inside component
-				result[attrName] = [];
+				// Nested repeatable component inside component (e.g. "metaSocial" inside "seo")
+				const childItems = [];
+
+				// 1. Check if fields[attrName] is already an array
+				if (Array.isArray(fields[attrName])) {
+					for (const rawItem of fields[attrName]) {
+						const childConsumed = new Set();
+						const mappedChild = mapComponentObject(attr.schema, rawItem, attrName, childConsumed, docContext);
+						if (mappedChild) childItems.push(mappedChild);
+					}
+					consumedKeys.add(attrName);
+				}
+
+				// 2. Check docContext.repeatedGroups matching attrName (e.g. "metaSocial")
+				if (childItems.length === 0 && docContext?.repeatedGroups) {
+					const matchingRgIndex = docContext.repeatedGroups.findIndex((rg, rgIdx) => {
+						if (docContext.mappedRepeatedGroupIndices?.has(rgIdx)) return false;
+						const normHeading = normalizeKey(rg.sectionHeading);
+						return normHeading === normAttr || normHeading.includes(normAttr) || normAttr.includes(normHeading);
+					});
+
+					if (matchingRgIndex !== -1) {
+						const rg = docContext.repeatedGroups[matchingRgIndex];
+						if (docContext.mappedRepeatedGroupIndices) {
+							docContext.mappedRepeatedGroupIndices.add(matchingRgIndex);
+						}
+						for (const rec of rg.records || []) {
+							const childFields = { ...(rec.rawFields || {}), ...rec.fields };
+							const childConsumed = new Set();
+							const mappedChild = mapComponentObject(attr.schema, childFields, attrName, childConsumed, docContext);
+							if (mappedChild) {
+								childItems.push(mappedChild);
+							}
+							if (rec.blockIds && docContext.mappedBlockIds) {
+								for (const bId of rec.blockIds) docContext.mappedBlockIds.add(bId);
+							}
+						}
+					}
+				}
+
+				// 3. Check docContext.keyValues matching attrName (single table entry for repeatable child component)
+				if (childItems.length === 0 && docContext?.keyValues) {
+					const childFields = {};
+					const childBlockIds = [];
+					docContext.keyValues.forEach((kv, idx) => {
+						if (docContext.mappedKvIndices?.has(idx)) return;
+						const normSec = normalizeKey(kv.sectionHeading || kv.section || '');
+						if (normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec)) {
+							childFields[kv.rawKey] = kv.value;
+							if (kv.blockId) childBlockIds.push(kv.blockId);
+							if (docContext.mappedKvIndices) docContext.mappedKvIndices.add(idx);
+							if (kv.blockId && docContext.mappedBlockIds) docContext.mappedBlockIds.add(kv.blockId);
+						}
+					});
+
+					if (Object.keys(childFields).length > 0) {
+						const childConsumed = new Set();
+						const mappedChild = mapComponentObject(attr.schema, childFields, attrName, childConsumed, docContext);
+						if (mappedChild) {
+							childItems.push(mappedChild);
+							if (docContext.mappedBlockIds) {
+								for (const bId of childBlockIds) docContext.mappedBlockIds.add(bId);
+							}
+						}
+					}
+				}
+
+				// 4. Check dotted indexed keys in fields (e.g. metaSocial[0].title or metaSocial.0.title)
+				if (childItems.length === 0) {
+					const indexedBuckets = {};
+					for (const [fk, fv] of Object.entries(fields)) {
+						const match = fk.match(new RegExp(`^${attrName}[\\[\\._](\\d+)[\\]\\._](.+)$`, 'i'));
+						if (match) {
+							const idx = parseInt(match[1], 10);
+							const prop = match[2];
+							indexedBuckets[idx] = indexedBuckets[idx] || {};
+							indexedBuckets[idx][prop] = fv;
+							consumedKeys.add(fk);
+						}
+					}
+					const sortedIndices = Object.keys(indexedBuckets).map(Number).sort((a, b) => a - b);
+					for (const idx of sortedIndices) {
+						const childConsumed = new Set();
+						const mappedChild = mapComponentObject(attr.schema, indexedBuckets[idx], attrName, childConsumed, docContext);
+						if (mappedChild) {
+							childItems.push(mappedChild);
+						}
+					}
+				}
+
+				result[attrName] = childItems;
+				if (childItems.length > 0) {
+					hasAnyData = true;
+				}
 			}
 		} else {
 			// Scalar / Media field
@@ -485,6 +611,7 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 
 	const mappedBlockIds = new Set();
 	const mappedKvIndices = new Set();
+	const mappedRepeatedGroupIndices = new Set();
 
 	const attributes = contentTypeDef?.attributes || {};
 	const keyValues = intermediateDoc.keyValues || [];
@@ -492,6 +619,17 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 	const sections = intermediateDoc.sections || [];
 	const blocks = documentModel.blocks || [];
 	const docImages = documentModel.images || [];
+
+	const docContext = {
+		keyValues,
+		repeatedGroups,
+		sections,
+		blocks,
+		images: docImages,
+		mappedKvIndices,
+		mappedBlockIds,
+		mappedRepeatedGroupIndices
+	};
 
 	// Helper to find best key-value match
 	function findBestKv(targetAttrName, preferredSection = '', componentName = '') {
@@ -687,7 +825,7 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		}
 
 		const consumed = new Set();
-		const mappedObj = mapComponentObject(compSchema, compFields, attrName, consumed);
+		const mappedObj = mapComponentObject(compSchema, compFields, attrName, consumed, docContext);
 
 		if (mappedObj) {
 			data[attrName] = mappedObj;
@@ -779,14 +917,45 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		}
 
 		if (matchingGroup && matchingGroup.records) {
+			const rgIdx = repeatedGroups.indexOf(matchingGroup);
+			if (rgIdx !== -1) mappedRepeatedGroupIndices.add(rgIdx);
 			for (const rec of matchingGroup.records) {
 				const fieldsToMap = { ...(rec.rawFields || {}), ...rec.fields };
 				const consumed = new Set();
-				const itemData = mapComponentObject(compSchema, fieldsToMap, attrName, consumed);
+				const itemData = mapComponentObject(compSchema, fieldsToMap, attrName, consumed, docContext);
 
 				if (itemData) {
 					items.push(itemData);
 					if (rec.blockIds) compBlockIds.push(...rec.blockIds);
+				}
+			}
+		}
+
+		// Fallback for single table or keyValues belonging to this repeatable component (e.g. single entry "seo")
+		if (items.length === 0) {
+			const compFields = {};
+			keyValues.forEach((kv, idx) => {
+				const normSec = normalizeKey(kv.section || kv.sectionHeading || '');
+				const isSectionMatch =
+					normSec === normAttrName ||
+					normSec.includes(normAttrName) ||
+					normAttrName.includes(normSec);
+				const isPrefixed = kv.rawKey.toLowerCase().startsWith(attrName.toLowerCase() + '.');
+
+				if (isSectionMatch || isPrefixed) {
+					const fieldKey = isPrefixed ? kv.rawKey.slice(attrName.length + 1) : kv.rawKey;
+					compFields[fieldKey] = kv.value;
+					if (kv.blockId) compBlockIds.push(kv.blockId);
+					mappedKvIndices.add(idx);
+					if (kv.blockId) mappedBlockIds.add(kv.blockId);
+				}
+			});
+
+			if (Object.keys(compFields).length > 0) {
+				const consumed = new Set();
+				const mappedItem = mapComponentObject(compSchema, compFields, attrName, consumed, docContext);
+				if (mappedItem) {
+					items.push(mappedItem);
 				}
 			}
 		}
@@ -851,16 +1020,26 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		}
 	}
 
+	// Helper to check if a section heading matches any top-level or recursively nested component attribute
+	function matchesAnySchema(attrMap) {
+		for (const [aName, aDef] of Object.entries(attrMap || {})) {
+			const normA = normalizeKey(aName);
+			if (normHeading.includes(normA) || normA.includes(normHeading)) return true;
+			if (aDef?.type === 'component' && aDef?.schema?.attributes) {
+				if (matchesAnySchema(aDef.schema.attributes)) return true;
+			}
+		}
+		return false;
+	}
+
 	// Unmapped paragraphs from extra sections
+	let normHeading = '';
 	for (const sec of sections) {
-		const normHeading = normalizeKey(sec.heading);
+		normHeading = normalizeKey(sec.heading);
 		if (!normHeading) continue;
 
-		// Check if any schema attribute matches this section
-		const schemaHasSection = Object.keys(attributes).some((a) => {
-			const normA = normalizeKey(a);
-			return normHeading.includes(normA) || normA.includes(normHeading);
-		});
+		// Check if any schema attribute (top-level or component) matches this section
+		const schemaHasSection = matchesAnySchema(attributes);
 
 		if (!schemaHasSection) {
 			for (const p of sec.paragraphs) {

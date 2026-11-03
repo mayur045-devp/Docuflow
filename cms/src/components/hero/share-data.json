@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_hero_share_data",
+  "info": {
+    "displayName": "shareData"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "shareContent": {
+      "type": "blocks"
+    }
+  },
+  "config": {}
+}

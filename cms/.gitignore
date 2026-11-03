@@ -1,7 +1,50 @@
-# Env
+# Environment files
 .env
 .env.*
 !.env.example
 !.env.test
-
-.tmp
+ 
+# Build outputs
+dist/
+build/
+.cache/
+ 
+# Databases & temporary files
+.tmp/
+*.db
+*.sqlite
+*.sqlite3
+ 
+# Strapi media uploads (CRITICAL: User uploaded photos & personal media)
+public/uploads/*
+!public/uploads/.gitkeep
+ 
+# Dependencies
+node_modules/
+ 
+# OS / Editor
+.DS_Store
+Thumbs.db
+ 
+ 
+# Build outputs
+dist/
+build/
+.cache/
+ 
+# Databases & temporary files
+.tmp/
+*.db
+*.sqlite
+*.sqlite3
+ 
+# Strapi media uploads (CRITICAL: User uploaded photos & personal media)
+public/uploads/*
+!public/uploads/.gitkeep
+ 
+# Dependencies
+node_modules/
+ 
+# OS / Editor
+.DS_Store
+Thumbs.db

@@ -1,28 +1,66 @@
-node_modules
-
-# Output
-.output
-.vercel
-.netlify
-.wrangler
-/.svelte-kit
-/build
-
-# OS
+# Dependencies
+node_modules/
+cms/node_modules/
+ 
+# SvelteKit & Web build outputs
+.output/
+.vercel/
+.netlify/
+.wrangler/
+.svelte-kit/
+build/
+dist/
+ 
+# OS and temporary files
 .DS_Store
 Thumbs.db
-
-# Env
+*.tmp
+*.log
+ 
+# Environment variables & secrets (CRITICAL FOR PRIVACY)
 .env
 .env.*
 !.env.example
 !.env.test
-
-# App data
-.data
+cms/.env
+cms/.env.*
+!cms/.env.example
+ 
+# Application data & local databases (CRITICAL FOR PRIVACY)
 .data/
-fixtures/docs/*.docx
-
+*.db
+*.sqlite
+*.sqlite3
+cms/.tmp/
+cms/*.db
+ 
+# Personal data: User documents & docx/pdf test files
+fixtures/docs/*
+!fixtures/docs/.gitkeep
+fixtures/extracted/*
+!fixtures/extracted/.gitkeep
+fixtures/images/*
+!fixtures/images/.gitkeep
+uploads/
+*.docx
+*.pdf
+*.xlsx
+ 
+# Strapi media uploads & runtime (CRITICAL: Never commit uploaded media/images to GitHub)
+cms/public/uploads/*
+!cms/public/uploads/.gitkeep
+cms/.cache/
+cms/build/
+cms/dist/
+cms/.strapi-updater.json
+ 
+# Test outputs & Playwright artifacts
+test-results/
+playwright-report/
+.playwright/
+blob-report/
+ 
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+ 

@@ -61,6 +61,17 @@ export interface ComponentCards extends Struct.ComponentSchema {
 	};
 }
 
+export interface ComponentClientLogos extends Struct.ComponentSchema {
+	collectionName: 'components_component_client_logos';
+	info: {
+		displayName: 'clientLogos';
+	};
+	attributes: {
+		image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+		title: Schema.Attribute.String;
+	};
+}
+
 export interface ComponentContentNew extends Struct.ComponentSchema {
 	collectionName: 'components_component_content_news';
 	info: {
@@ -68,6 +79,19 @@ export interface ComponentContentNew extends Struct.ComponentSchema {
 	};
 	attributes: {
 		content: Schema.Attribute.Text;
+		title: Schema.Attribute.String;
+	};
+}
+
+export interface ComponentMetaSocial extends Struct.ComponentSchema {
+	collectionName: 'components_component_meta_socials';
+	info: {
+		displayName: 'metaSocial';
+	};
+	attributes: {
+		description: Schema.Attribute.Text;
+		image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
+		socialNetwork: Schema.Attribute.Enumeration<['ex']>;
 		title: Schema.Attribute.String;
 	};
 }
@@ -140,6 +164,17 @@ export interface HeroHeroSection extends Struct.ComponentSchema {
 	};
 }
 
+export interface HeroShareData extends Struct.ComponentSchema {
+	collectionName: 'components_hero_share_data';
+	info: {
+		displayName: 'shareData';
+	};
+	attributes: {
+		shareContent: Schema.Attribute.Blocks;
+		title: Schema.Attribute.String;
+	};
+}
+
 declare module '@strapi/strapi' {
 	export namespace Public {
 		export interface ComponentSchemas {
@@ -148,12 +183,15 @@ declare module '@strapi/strapi' {
 			'component.author-data': ComponentAuthorData;
 			'component.banner': ComponentBanner;
 			'component.cards': ComponentCards;
+			'component.client-logos': ComponentClientLogos;
 			'component.content-new': ComponentContentNew;
+			'component.meta-social': ComponentMetaSocial;
 			'component.options': ComponentOptions;
 			'component.poll-data': ComponentPollData;
 			'component.seo': ComponentSeo;
 			'cta.cta': CtaCta;
 			'hero.hero-section': HeroHeroSection;
+			'hero.share-data': HeroShareData;
 		}
 	}
 }

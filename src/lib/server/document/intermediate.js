@@ -200,6 +200,63 @@ export function extractIntermediateDocument(docModel) {
 				});
 			}
 
+			// 4. Detect repeated records from multiple tables within the same section
+			if (currentSection.tables.length >= 2) {
+				const twoColTables = currentSection.tables.filter(
+					(t) => t.rows && t.rows.length >= 1 && t.rows.every((r) => r.length === 2)
+				);
+
+				if (twoColTables.length >= 2) {
+					const tableRecords = twoColTables.map((t) => {
+						const fields = {};
+						const rawFields = {};
+						const keys = [];
+						for (let i = 0; i < t.rows.length; i++) {
+							const [kStr, vStr] = t.rows[i];
+							const normK = normalizeKey(kStr);
+							const rawK = kStr?.trim();
+							const vHtml = t.rowHtmls?.[i]?.[1];
+							const bestVal = vHtml && vHtml.includes('<') ? vHtml : (vStr?.trim() ?? '');
+							if (normK) {
+								fields[normK] = bestVal;
+								rawFields[rawK] = bestVal;
+								keys.push(normK);
+							}
+						}
+						return {
+							blockId: t.blockId,
+							keys,
+							fields,
+							rawFields
+						};
+					});
+
+					// Check key overlap across tables
+					const commonKeys = tableRecords[0].keys.filter((k) =>
+						tableRecords.slice(1).every((tr) => tr.keys.includes(k))
+					);
+
+					if (commonKeys.length >= 1 || tableRecords.length >= 2) {
+						const records = tableRecords.map((tr) => ({
+							blockIds: [tr.blockId],
+							fields: tr.fields,
+							rawFields: tr.rawFields
+						}));
+
+						currentSection.repeatedRecords.push({
+							sectionHeading: currentSection.heading,
+							blockId: tableRecords[0].blockId,
+							records
+						});
+
+						const claimedBlockIds = new Set(tableRecords.map((tr) => tr.blockId));
+						currentSection.keyValues = currentSection.keyValues.filter(
+							(kv) => !claimedBlockIds.has(kv.blockId)
+						);
+					}
+				}
+			}
+
 			sections.push(currentSection);
 		}
 	}
@@ -313,7 +370,8 @@ export function extractIntermediateDocument(docModel) {
 			currentSection.tables.push({
 				blockId: block.id,
 				rows,
-				headerRow: block.headerRow
+				headerRow: block.headerRow,
+				rowHtmls: block.rowHtmls
 			});
 
 			// Case 1: 2-column table

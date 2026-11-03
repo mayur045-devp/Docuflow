@@ -68,11 +68,7 @@ export function attributeToZod(attr) {
 		}
 
 		case 'enumeration': {
-			if (attr.enum && attr.enum.length > 0) {
-				schema = z.enum(attr.enum);
-			} else {
-				schema = z.string();
-			}
+			schema = z.string();
 			break;
 		}
 

@@ -547,6 +547,35 @@ export interface ApiPollPoll extends Struct.CollectionTypeSchema {
 	};
 }
 
+export interface ApiSaleSale extends Struct.CollectionTypeSchema {
+	collectionName: 'sales';
+	info: {
+		displayName: 'Sale';
+		pluralName: 'sales';
+		singularName: 'sale';
+	};
+	options: {
+		draftAndPublish: true;
+	};
+	attributes: {
+		clientLogos: Schema.Attribute.Component<'component.client-logos', true>;
+		content: Schema.Attribute.Blocks;
+		createdAt: Schema.Attribute.DateTime;
+		createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+		image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+		locale: Schema.Attribute.String & Schema.Attribute.Private;
+		localizations: Schema.Attribute.Relation<'oneToMany', 'api::sale.sale'> &
+			Schema.Attribute.Private;
+		publishedAt: Schema.Attribute.DateTime;
+		seo: Schema.Attribute.Component<'component.seo', true>;
+		shareData: Schema.Attribute.Component<'hero.share-data', false>;
+		slug: Schema.Attribute.UID;
+		title: Schema.Attribute.String;
+		updatedAt: Schema.Attribute.DateTime;
+		updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+	};
+}
+
 export interface PluginContentReleasesRelease extends Struct.CollectionTypeSchema {
 	collectionName: 'strapi_releases';
 	info: {
@@ -981,6 +1010,7 @@ declare module '@strapi/strapi' {
 			'api::blog.blog': ApiBlogBlog;
 			'api::mayur.mayur': ApiMayurMayur;
 			'api::poll.poll': ApiPollPoll;
+			'api::sale.sale': ApiSaleSale;
 			'plugin::content-releases.release': PluginContentReleasesRelease;
 			'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
 			'plugin::i18n.locale': PluginI18NLocale;

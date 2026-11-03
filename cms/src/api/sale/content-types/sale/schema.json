@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "sales",
+  "info": {
+    "singularName": "sale",
+    "pluralName": "sales",
+    "displayName": "Sale"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "uid"
+    },
+    "content": {
+      "type": "blocks"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "shareData": {
+      "type": "component",
+      "component": "hero.share-data",
+      "repeatable": false
+    },
+    "clientLogos": {
+      "type": "component",
+      "component": "component.client-logos",
+      "repeatable": true
+    },
+    "seo": {
+      "type": "component",
+      "component": "component.seo",
+      "repeatable": true
+    }
+  }
+}
