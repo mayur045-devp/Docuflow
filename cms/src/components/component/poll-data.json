@@ -5,10 +5,10 @@
   },
   "options": {},
   "attributes": {
-    "title": {
+    "PollTitle": {
       "type": "string"
     },
-    "subtitle": {
+    "PollSubtitle": {
       "type": "string"
     },
     "position": {

@@ -460,6 +460,32 @@ export interface ApiBlogBlog extends Struct.CollectionTypeSchema {
 	};
 }
 
+export interface ApiMayurMayur extends Struct.SingleTypeSchema {
+	collectionName: 'mayurs';
+	info: {
+		displayName: 'Mayur';
+		pluralName: 'mayurs';
+		singularName: 'mayur';
+	};
+	options: {
+		draftAndPublish: true;
+	};
+	attributes: {
+		Banner: Schema.Attribute.Component<'component.banner', false>;
+		createdAt: Schema.Attribute.DateTime;
+		createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+		cta: Schema.Attribute.Component<'cta.cta', true>;
+		HeroSection: Schema.Attribute.Component<'hero.hero-section', false>;
+		locale: Schema.Attribute.String & Schema.Attribute.Private;
+		localizations: Schema.Attribute.Relation<'oneToMany', 'api::mayur.mayur'> &
+			Schema.Attribute.Private;
+		publishedAt: Schema.Attribute.DateTime;
+		thumbnailImages: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
+		updatedAt: Schema.Attribute.DateTime;
+		updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+	};
+}
+
 export interface ApiPollPoll extends Struct.CollectionTypeSchema {
 	collectionName: 'polls';
 	info: {
@@ -925,6 +951,7 @@ declare module '@strapi/strapi' {
 			'admin::user': AdminUser;
 			'api::article.article': ApiArticleArticle;
 			'api::blog.blog': ApiBlogBlog;
+			'api::mayur.mayur': ApiMayurMayur;
 			'api::poll.poll': ApiPollPoll;
 			'plugin::content-releases.release': PluginContentReleasesRelease;
 			'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

@@ -8,6 +8,7 @@
  *   items?: { text: string, html: string, level: number }[],
  *   ordered?: boolean,
  *   rows?: string[][],
+ *   rowHtmls?: string[][],
  *   headerRow?: boolean,
  *   imageId?: string,
  *   alt?: string,

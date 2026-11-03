@@ -73,6 +73,111 @@ export async function parseDocx(docxBuffer, options = {}) {
 	// Load HTML into cheerio
 	const $ = cheerio.load(mammothResult.value || '', null, false);
 
+	/**
+	 * Converts a Cheerio table element into clean, valid HTML table markup:
+	 * <table>
+	 *   <thead><tr><th>...</th></tr></thead>
+	 *   <tbody><tr><td>...</td></tr></tbody>
+	 * </table>
+	 * Preserves all columns, rows, cell formatting, and original order.
+	 *
+	 * @param {any} $table Cheerio table element
+	 * @param {any} $cheerio Cheerio instance
+	 * @returns {string} Clean HTML table string
+	 */
+	function formatHtmlTable($table, $cheerio) {
+		const $directTrs =
+			$table.children('tr').length > 0
+				? $table.children('tr')
+				: $table.children('thead, tbody, tfoot').children('tr');
+
+		if ($directTrs.length === 0) return '';
+
+		/** @type {{ isTh: boolean, html: string, text: string }[][]} */
+		const rows = [];
+		let hasTh = false;
+
+		$directTrs.each((_, tr) => {
+			const $tr = $cheerio(tr);
+			/** @type {{ isTh: boolean, html: string, text: string }[]} */
+			const cells = [];
+			$tr.children('th, td').each((_, cell) => {
+				const $cell = $cheerio(cell);
+				const isTh = cell.tagName?.toLowerCase() === 'th';
+				if (isTh) hasTh = true;
+
+				// Handle embedded images inside cell
+				const imgEl = $cell.find('img[src^="docimg://"]');
+				if (imgEl.length > 0) {
+					const src = imgEl.attr('src') || '';
+					const imgId = src.replace('docimg://', '');
+					if (!$cell.text().trim()) {
+						$cell.text(imgId);
+					}
+				}
+
+				let innerHtml = $cell.html()?.trim() || '';
+				if (/^<p>(.*?)<\/p>$/s.test(innerHtml)) {
+					innerHtml = innerHtml.replace(/^<p>(.*?)<\/p>$/s, '$1');
+				}
+				const cellText = $cell.text().trim();
+
+				cells.push({
+					isTh,
+					html: innerHtml || cellText,
+					text: cellText
+				});
+			});
+
+			if (cells.length > 0) {
+				rows.push(cells);
+			}
+		});
+
+		if (rows.length === 0) return '';
+
+		const firstRowIsHeader =
+			rows.length > 1 &&
+			(hasTh ||
+				rows[0].some(
+					(c) => c.isTh || c.html.includes('<strong>') || c.html.includes('<b>')
+				) ||
+				true);
+
+		let out = '<table>\n';
+		let bodyStartIdx = 0;
+
+		if (firstRowIsHeader) {
+			out += '  <thead>\n    <tr>\n';
+			rows[0].forEach((c) => {
+				let headerText = c.html.replace(/<\/?strong>/gi, '').replace(/<\/?b>/gi, '').trim();
+				if (!headerText) headerText = c.text;
+				out += `      <th>${headerText}</th>\n`;
+			});
+			out += '    </tr>\n  </thead>\n';
+			bodyStartIdx = 1;
+		}
+
+		out += '  <tbody>\n';
+		for (let i = bodyStartIdx; i < rows.length; i++) {
+			out += '    <tr>\n';
+			rows[i].forEach((c) => {
+				out += `      <td>${c.html || c.text}</td>\n`;
+			});
+			out += '    </tr>\n';
+		}
+		out += '  </tbody>\n</table>';
+
+		return out;
+	}
+
+	// Pre-process any nested tables inside table cells into clean HTML table markup
+	$('table table').each((_, nestedTbl) => {
+		const $nested = $(nestedTbl);
+		const cleanTableHtml = formatHtmlTable($nested, $);
+		$nested.replaceWith(cleanTableHtml);
+	});
+
 	/** @type {import('./model.js').Block[]} */
 	const rawBlocks = [];
 	let blockCounter = 0;
@@ -200,13 +305,23 @@ export async function parseDocx(docxBuffer, options = {}) {
 		if (tagName === 'table') {
 			/** @type {string[][]} */
 			const rows = [];
+			/** @type {string[][]} */
+			const rowHtmls = [];
 			let hasTh = false;
 
-			$el.find('tr').each((_, tr) => {
+			const $directTrs =
+				$el.children('tr').length > 0
+					? $el.children('tr')
+					: $el.children('thead, tbody, tfoot').children('tr');
+
+			$directTrs.each((_, tr) => {
 				/** @type {string[]} */
 				const row = [];
+				/** @type {string[]} */
+				const rHtml = [];
+
 				$(tr)
-					.find('th, td')
+					.children('th, td')
 					.each((_, cell) => {
 						if (cell.tagName.toLowerCase() === 'th') hasTh = true;
 						const $cell = $(cell);
@@ -222,21 +337,25 @@ export async function parseDocx(docxBuffer, options = {}) {
 							}
 						}
 						row.push(cellText);
+						rHtml.push($cell.html()?.trim() || cellText);
 					});
 				if (row.length > 0) {
 					rows.push(row);
+					rowHtmls.push(rHtml);
 				}
 			});
 
 			if (rows.length > 0) {
 				const text = rows.map((r) => r.join(' | ')).join('\n');
+				const cleanHtml = formatHtmlTable($el, $);
 				rawBlocks.push({
 					id: nextBlockId(),
 					type: 'table',
 					rows,
+					rowHtmls,
 					headerRow: hasTh || rows.length > 1,
 					text,
-					html: $el.html()?.trim() || '',
+					html: cleanHtml || $el.html()?.trim() || '',
 					sectionPath: []
 				});
 			}

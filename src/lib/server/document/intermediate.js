@@ -339,6 +339,7 @@ export function extractIntermediateDocument(docModel) {
 
 					for (let i = 0; i < rows.length; i++) {
 						const [kStr, vStr] = rows[i];
+						const vHtml = block.rowHtmls?.[i]?.[1];
 						const normK = normalizeKey(kStr);
 						if (!normK) continue;
 
@@ -359,8 +360,10 @@ export function extractIntermediateDocument(docModel) {
 							};
 						}
 
-						currentRecord.fields[normK] = vStr.trim();
-						currentRecord.rawFields[kStr.trim()] = vStr.trim();
+						// Prefer rich HTML for value if it contains HTML tags (e.g. <table>, <p>, <ul>)
+						const bestVal = vHtml && vHtml.includes('<') ? vHtml : vStr.trim();
+						currentRecord.fields[normK] = bestVal;
+						currentRecord.rawFields[kStr.trim()] = bestVal;
 					}
 
 					if (currentRecord && Object.keys(currentRecord.fields).length > 0) {
@@ -375,14 +378,17 @@ export function extractIntermediateDocument(docModel) {
 						});
 					}
 				} else {
-					for (const r of rows) {
-						const rawKey = r[0]?.trim();
-						const rawVal = r[1]?.trim() ?? '';
+					for (let i = 0; i < rows.length; i++) {
+						const [kStr, vStr] = rows[i];
+						const vHtml = block.rowHtmls?.[i]?.[1];
+						const rawKey = kStr?.trim();
+						const bestVal =
+							vHtml && vHtml.includes('<') ? vHtml : (vStr?.trim() ?? '');
 						if (rawKey) {
 							currentSection.keyValues.push({
 								key: normalizeKey(rawKey),
 								rawKey,
-								value: rawVal,
+								value: bestVal,
 								blockId: block.id,
 								sectionHeading: currentSection.heading
 							});
@@ -392,10 +398,26 @@ export function extractIntermediateDocument(docModel) {
 				continue;
 			}
 
-			// Case 2: Multi-column table with header row (e.g. Service | Description)
-			if (rows.length >= 2) {
+			// Case 2: Multi-column table
+			// Only treat as repeatedRecords if headers correspond to service/offering/feature definitions
+			// or if headers clearly represent repeated component records (e.g. Service | Description).
+			// Otherwise, it is a content table that belongs inside this section's content flow.
+			const normHeaders = rows.length >= 2 ? rows[0].map(normalizeKey) : [];
+			const isServiceOrFaqTable = normHeaders.some((h) =>
+				['service', 'offering', 'feature', 'capability', 'question', 'faq'].includes(h)
+			);
+			const normSectionHeading = normalizeKey(currentSection.heading);
+			const isRepeatableSection =
+				normSectionHeading.includes('service') ||
+				normSectionHeading.includes('offering') ||
+				normSectionHeading.includes('faq');
+
+			if (
+				rows.length >= 2 &&
+				(isServiceOrFaqTable ||
+					(isRepeatableSection && !normSectionHeading.includes('content')))
+			) {
 				const headers = rows[0].map((h) => h.trim());
-				const normHeaders = headers.map(normalizeKey);
 				const records = [];
 
 				for (let r = 1; r < rows.length; r++) {
@@ -422,6 +444,13 @@ export function extractIntermediateDocument(docModel) {
 						records
 					});
 				}
+			} else {
+				// Content table within section: preserve as clean HTML markup
+				currentSection.paragraphs.push({
+					text: block.text,
+					html: block.html || `<p>${block.text}</p>`,
+					blockId: block.id
+				});
 			}
 		}
 	}

@@ -176,6 +176,45 @@ export function htmlToStrapiBlocks(html) {
 			return;
 		}
 
+		if (tag === 'table') {
+			const $table = $(el);
+			const $trs = $table.find('tr');
+			/** @type {string[]} */
+			let headers = [];
+
+			$trs.each((rIdx, tr) => {
+				const $cells = $(tr).find('th, td');
+				if (rIdx === 0 && ($(tr).find('th').length > 0 || $trs.length > 1)) {
+					headers = $cells.map((_, c) => $(c).text().trim()).get();
+					const headerText = headers.join(' | ');
+					blocks.push({
+						type: 'paragraph',
+						children: [{ type: 'text', text: headerText, bold: true }]
+					});
+				} else {
+					const rowChildren = [];
+					$cells.each((cIdx, cell) => {
+						const label = headers[cIdx] ? `${headers[cIdx]}: ` : '';
+						const val = $(cell).text().trim();
+						if (label) {
+							rowChildren.push({ type: 'text', text: label, bold: true });
+						}
+						rowChildren.push({
+							type: 'text',
+							text: cIdx < $cells.length - 1 ? `${val} | ` : val
+						});
+					});
+					if (rowChildren.length > 0) {
+						blocks.push({
+							type: 'paragraph',
+							children: rowChildren
+						});
+					}
+				}
+			});
+			return;
+		}
+
 		// Paragraph or generic block container
 		const children = parseInlineNodes(el, $);
 		if (children.length > 0) {

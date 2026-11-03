@@ -24,6 +24,19 @@ export interface ComponentAuthorData extends Struct.ComponentSchema {
 	};
 }
 
+export interface ComponentBanner extends Struct.ComponentSchema {
+	collectionName: 'components_component_banners';
+	info: {
+		displayName: 'banner';
+	};
+	attributes: {
+		button: Schema.Attribute.Component<'button.button', false>;
+		description: Schema.Attribute.Text;
+		Image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+		title: Schema.Attribute.String;
+	};
+}
+
 export interface ComponentContentNew extends Struct.ComponentSchema {
 	collectionName: 'components_component_content_news';
 	info: {
@@ -55,9 +68,9 @@ export interface ComponentPollData extends Struct.ComponentSchema {
 	attributes: {
 		isActive: Schema.Attribute.Boolean;
 		Options: Schema.Attribute.Component<'component.options', false>;
+		PollSubtitle: Schema.Attribute.String;
+		PollTitle: Schema.Attribute.String;
 		position: Schema.Attribute.Integer;
-		subtitle: Schema.Attribute.String;
-		title: Schema.Attribute.String;
 	};
 }
 
@@ -78,15 +91,43 @@ export interface ComponentSeo extends Struct.ComponentSchema {
 	};
 }
 
+export interface CtaCta extends Struct.ComponentSchema {
+	collectionName: 'components_cta_ctas';
+	info: {
+		displayName: 'cta';
+	};
+	attributes: {
+		button: Schema.Attribute.Component<'button.button', false>;
+		description: Schema.Attribute.String;
+		image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+		title: Schema.Attribute.String;
+	};
+}
+
+export interface HeroHeroSection extends Struct.ComponentSchema {
+	collectionName: 'components_hero_hero_sections';
+	info: {
+		displayName: 'HeroSection';
+	};
+	attributes: {
+		coverImage: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+		subtitle: Schema.Attribute.String;
+		title: Schema.Attribute.String;
+	};
+}
+
 declare module '@strapi/strapi' {
 	export namespace Public {
 		export interface ComponentSchemas {
 			'button.button': ButtonButton;
 			'component.author-data': ComponentAuthorData;
+			'component.banner': ComponentBanner;
 			'component.content-new': ComponentContentNew;
 			'component.options': ComponentOptions;
 			'component.poll-data': ComponentPollData;
 			'component.seo': ComponentSeo;
+			'cta.cta': CtaCta;
+			'hero.hero-section': HeroHeroSection;
 		}
 	}
 }

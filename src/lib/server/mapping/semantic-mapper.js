@@ -248,7 +248,8 @@ function formatScalarValue(rawVal, attrDef) {
 	switch (attrDef.type) {
 		case 'string':
 		case 'email':
-			return str;
+			// Strip HTML tags for simple string fields (e.g. <p>Title</p> -> Title)
+			return str.replace(/<[^>]*>/g, '').trim();
 
 		case 'text':
 		case 'richtext':
@@ -282,11 +283,16 @@ function formatScalarValue(rawVal, attrDef) {
 		}
 
 		case 'json': {
-			if (typeof rawVal === 'object') return rawVal;
+			if (typeof rawVal === 'object' && rawVal !== null) return rawVal;
+			const cleanStr = str.replace(/<[^>]*>/g, '').trim();
 			try {
-				return JSON.parse(str);
+				return JSON.parse(cleanStr);
 			} catch {
-				return str;
+				try {
+					return JSON.parse(str);
+				} catch {
+					return str;
+				}
 			}
 		}
 

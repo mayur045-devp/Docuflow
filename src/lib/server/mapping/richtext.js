@@ -59,6 +59,35 @@ export function htmlToMarkdown(html) {
 		$(el).replaceWith(`\n${$(el).text().trim()}\n`);
 	});
 
+	// Convert tables to markdown tables
+	$('table').each((_, el) => {
+		const $tbl = $(el);
+		/** @type {string[][]} */
+		const rows = [];
+		$tbl.find('tr').each((_, tr) => {
+			/** @type {string[]} */
+			const row = [];
+			$(tr)
+				.find('th, td')
+				.each((_, cell) => {
+					row.push($(cell).text().trim().replace(/\|/g, '\\|'));
+				});
+			if (row.length > 0) rows.push(row);
+		});
+
+		if (rows.length > 0) {
+			let mdTable = '\n\n';
+			rows.forEach((row, rIdx) => {
+				mdTable += `| ${row.join(' | ')} |\n`;
+				if (rIdx === 0) {
+					mdTable += `| ${row.map(() => '---').join(' | ')} |\n`;
+				}
+			});
+			mdTable += '\n';
+			$tbl.replaceWith(mdTable);
+		}
+	});
+
 	$('p').each((_, el) => {
 		$(el).replaceWith(`\n\n${$(el).text().trim()}\n\n`);
 	});

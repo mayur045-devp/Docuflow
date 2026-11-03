@@ -1,0 +1,40 @@
+{
+  "kind": "singleType",
+  "collectionName": "mayurs",
+  "info": {
+    "singularName": "mayur",
+    "pluralName": "mayurs",
+    "displayName": "Mayur"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "HeroSection": {
+      "type": "component",
+      "component": "hero.hero-section",
+      "repeatable": false
+    },
+    "cta": {
+      "type": "component",
+      "component": "cta.cta",
+      "repeatable": true
+    },
+    "Banner": {
+      "type": "component",
+      "component": "component.banner",
+      "repeatable": false
+    },
+    "thumbnailImages": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    }
+  }
+}
