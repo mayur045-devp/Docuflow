@@ -25,7 +25,7 @@ node_modules/
 # OS / Editor
 .DS_Store
 Thumbs.db
- 
+ docs/
  
 # Build outputs
 dist/

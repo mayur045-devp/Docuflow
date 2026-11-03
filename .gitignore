@@ -34,6 +34,9 @@ cms/.env.*
 cms/.tmp/
 cms/*.db
  
+# Documentation & audit reports
+docs/
+ 
 # Personal data: User documents & docx/pdf test files
 fixtures/docs/*
 !fixtures/docs/.gitkeep
@@ -43,12 +46,14 @@ fixtures/images/*
 !fixtures/images/.gitkeep
 uploads/
 *.docx
+*.doc
+*.odt
+*.rtf
 *.pdf
 *.xlsx
  
 # Strapi media uploads & runtime (CRITICAL: Never commit uploaded media/images to GitHub)
-cms/public/uploads/*
-!cms/public/uploads/.gitkeep
+cms/public/uploads/
 cms/.cache/
 cms/build/
 cms/dist/
