@@ -2,7 +2,6 @@ import { getEnv } from '../env.js';
 import { normalizeContentType } from './normalize.js';
 
 let cachedResult = null;
-let cachedFingerprint = '';
 let cacheExpiresAt = 0;
 
 /**
@@ -15,7 +14,7 @@ let cacheExpiresAt = 0;
  */
 export async function loadSchemasFromLiveEndpoint({ forceRefresh = false, timeoutMs = 3000 } = {}) {
 	const env = getEnv();
-	const strapiUrl = env.STRAPI_URL || 'http://localhost:1337';
+	const strapiUrl = env.STRAPI_URL;
 	const now = Date.now();
 
 	if (!forceRefresh && cachedResult && now < cacheExpiresAt) {
@@ -60,7 +59,6 @@ export async function loadSchemasFromLiveEndpoint({ forceRefresh = false, timeou
 		};
 
 		cachedResult = result;
-		// Safe cache for 10 seconds if not forced
 		cacheExpiresAt = now + 10 * 1000;
 
 		return result;

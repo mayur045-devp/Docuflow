@@ -1,34 +1,52 @@
 import crypto from 'node:crypto';
 import { json } from '@sveltejs/kit';
-import { resolveAvailableSchemas } from '$lib/server/schema/resolve.js';
+import { resolveAvailableSchemas, getContentTypeSchema } from '$lib/server/schema/resolve.js';
 import { registerUploadedSchema } from '$lib/server/schema/loader-upload.js';
-import { detectStrapiVersion } from '$lib/server/strapi/detect-version.js';
+import { getEnv } from '$lib/server/env.js';
 
 export async function GET({ url }) {
+	const env = getEnv();
 	const forceRefresh = url.searchParams.get('refresh') === 'true';
 	const targetUid = url.searchParams.get('uid');
-	const resolved = await resolveAvailableSchemas({ forceRefresh });
-	const detectedVersion = await detectStrapiVersion({ forceRefresh });
 
-	let selectedSchema = null;
-	let fingerprint = null;
-	if (targetUid) {
-		selectedSchema = resolved.contentTypes[targetUid] || null;
-		if (selectedSchema) {
-			fingerprint = crypto
-				.createHash('sha256')
-				.update(JSON.stringify(selectedSchema.attributes || {}))
-				.digest('hex');
+	try {
+		const resolved = await resolveAvailableSchemas({ forceRefresh });
+
+		let selectedSchema = null;
+		let fingerprint = null;
+		if (targetUid) {
+			selectedSchema = await getContentTypeSchema(targetUid, { forceRefresh });
+			if (selectedSchema) {
+				fingerprint = crypto
+					.createHash('sha256')
+					.update(JSON.stringify(selectedSchema.attributes || {}))
+					.digest('hex');
+			}
 		}
-	}
 
-	return json({
-		source: resolved.source,
-		strapiVersion: detectedVersion,
-		contentTypes: resolved.contentTypes,
-		selectedSchema,
-		fingerprint
-	});
+		return json({
+			source: resolved.source,
+			strapiUrl: env.STRAPI_URL,
+			strapiVersion: resolved.strapiVersion || '5',
+			contentTypesCount: resolved.contentTypesCount || Object.keys(resolved.contentTypes || {}).length,
+			componentsCount: resolved.componentsCount || 0,
+			contentTypes: resolved.contentTypes,
+			selectedSchema,
+			fingerprint
+		});
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return json(
+			{
+				error: {
+					code: 'SCHEMA_DISCOVERY_FAILED',
+					message,
+					strapiUrl: env.STRAPI_URL
+				}
+			},
+			{ status: 502 }
+		);
+	}
 }
 
 export async function POST({ request }) {

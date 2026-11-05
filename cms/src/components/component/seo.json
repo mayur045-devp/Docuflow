@@ -35,6 +35,11 @@
         "videos",
         "audios"
       ]
+    },
+    "metaSocial": {
+      "type": "component",
+      "repeatable": true,
+      "component": "component.meta-social"
     }
   },
   "config": {}

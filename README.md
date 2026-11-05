@@ -101,7 +101,7 @@ Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD` (de
 
 | Variable                | Default                        | Description                                                                     |
 | ----------------------- | ------------------------------ | ------------------------------------------------------------------------------- |
-| `STRAPI_URL`            | `http://localhost:1337`        | Strapi instance REST URL                                                        |
+| `STRAPI_URL`            | `https://strapi-preprod.12thwonder.com` | Strapi instance REST URL (Pre-Production CMS)                                  |
 | `STRAPI_API_TOKEN`      | -                              | Server-side API token (needs `find`, `create`, `update` permissions + `upload`) |
 | `STRAPI_VERSION`        | `auto`                         | `auto`, `4`, or `5` (auto probes Strapi and detects automatically)              |
 | `STRAPI_ADMIN_EMAIL`    | -                              | _(Optional)_ Enables live admin schema discovery via `/admin/login`             |

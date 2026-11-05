@@ -8,7 +8,7 @@ const mockDb = new Map();
 
 describe('Strapi Client and Adapters', () => {
 	beforeAll(() => {
-		process.env.STRAPI_URL = 'http://localhost:1337';
+		process.env.STRAPI_URL = 'https://strapi-preprod.12thwonder.com';
 		process.env.STRAPI_API_TOKEN = 'mock-strapi-token-12345';
 
 		// In-process fetch mock so tests run cleanly both inside and outside sandbox

@@ -1,6 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
 const SYSTEM_FIELDS = new Set([
 	'id',
 	'documentId',
@@ -133,7 +130,12 @@ export function normalizeAttribute(
 			const rawComp = componentRegistry[compUid];
 			const newVisited = new Set(visited).add(compUid);
 			const compSchema = rawComp
-				? normalizeContentType(rawComp, componentRegistry, newVisited, depth + 1)
+				? normalizeContentType(
+						rawComp.schema || rawComp,
+						componentRegistry,
+						newVisited,
+						depth + 1
+					)
 				: null;
 
 			return {
@@ -154,7 +156,7 @@ export function normalizeAttribute(
 				if (rawComp && depth < 6 && !visited.has(compUid)) {
 					const newVisited = new Set(visited).add(compUid);
 					schemas[compUid] = normalizeContentType(
-						rawComp,
+						rawComp.schema || rawComp,
 						componentRegistry,
 						newVisited,
 						depth + 1
@@ -191,9 +193,10 @@ export function normalizeAttribute(
 export function normalizeContentType(raw, componentRegistry = {}, visited = new Set(), depth = 0) {
 	if (!raw) return null;
 
-	const info = raw.info || {};
-	const options = raw.options || {};
-	const attributes = raw.attributes || {};
+	const schema = raw.schema || raw;
+	const info = schema.info || {};
+	const options = schema.options || schema.pluginOptions || {};
+	const attributes = schema.attributes || {};
 
 	const normalizedAttributes = {};
 	for (const [key, val] of Object.entries(attributes)) {
@@ -203,43 +206,34 @@ export function normalizeContentType(raw, componentRegistry = {}, visited = new 
 		}
 	}
 
-	// Determine content-type category (collectionType vs singleType) from metadata or disk fallback
-	let resolvedKind = raw.kind;
-	if (!resolvedKind) {
-		const singular = info.singularName || raw.collectionName;
-		if (singular) {
-			const candidateFiles = [
-				path.resolve('cms/src/api', singular, 'content-types', singular, 'schema.json'),
-				path.resolve('cms/dist/src/api', singular, 'content-types', singular, 'schema.json')
-			];
-			for (const cf of candidateFiles) {
-				if (fs.existsSync(cf)) {
-					try {
-						const diskJson = JSON.parse(fs.readFileSync(cf, 'utf8'));
-						if (diskJson.kind) {
-							resolvedKind = diskJson.kind;
-							break;
-						}
-					} catch {
-						// ignore
-					}
-				}
-			}
-		}
-	}
-	resolvedKind = resolvedKind || 'collectionType';
+	const singularName = schema.singularName || info.singularName || raw.apiID || '';
+	const pluralName =
+		schema.pluralName || info.pluralName || (singularName ? `${singularName}s` : 'items');
+	const displayName =
+		schema.displayName ||
+		info.displayName ||
+		singularName ||
+		info.singularName ||
+		raw.apiID ||
+		'Untitled';
+	const resolvedKind = schema.kind || raw.kind || 'collectionType';
+	const draftAndPublish =
+		schema.draftAndPublish !== undefined
+			? Boolean(schema.draftAndPublish)
+			: Boolean(options.draftAndPublish);
 
 	return {
 		uid:
 			raw.uid ||
-			(info.singularName ? `api::${info.singularName}.${info.singularName}` : raw.collectionName),
-		collectionName: raw.collectionName || '',
+			schema.uid ||
+			(singularName ? `api::${singularName}.${singularName}` : schema.collectionName),
+		collectionName: schema.collectionName || raw.collectionName || '',
 		kind: resolvedKind,
-		displayName: info.displayName || info.singularName || 'Untitled',
-		singularName: info.singularName || '',
-		pluralName: info.pluralName || `${info.singularName || 'item'}s`,
-		description: info.description || '',
-		draftAndPublish: Boolean(options.draftAndPublish),
+		displayName,
+		singularName,
+		pluralName,
+		description: schema.description || info.description || '',
+		draftAndPublish,
 		attributes: normalizedAttributes
 	};
 }

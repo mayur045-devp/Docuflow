@@ -116,7 +116,7 @@ describe('DOCX Table Parsing and HTML Table Conversion Inside contentNew', () =>
 
 		// 9. No extra component properties created - only schema fields
 		for (const item of items) {
-			expect(Object.keys(item).sort()).toEqual(['content', 'title'].sort());
+			expect(Object.keys(item).sort()).toEqual(['content', 'image', 'title'].sort());
 		}
 
 		// 10. Final Strapi payload contains only title and content

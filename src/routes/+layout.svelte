@@ -2,7 +2,7 @@
 	import './layout.css';
 	import { page } from '$app/state';
 
-	let { children } = $props();
+	let { data, children } = $props();
 
 	let currentPath = $derived(page.url.pathname);
 	let isLoginPage = $derived(currentPath === '/login');
@@ -63,11 +63,22 @@
 
 				<!-- Right Actions -->
 				<div class="flex items-center space-x-3 text-xs">
-					<span
-						class="hidden rounded-full border border-slate-800 bg-slate-900 px-2.5 py-1 font-mono text-[11px] text-slate-400 sm:inline-block"
-					>
-						Strapi 4 / 5 Ready
-					</span>
+					<!-- Safe Connection Status Pill -->
+					{#if data?.strapiUrl}
+						<div
+							class="hidden items-center gap-2 rounded-full border border-emerald-900/60 bg-emerald-950/40 px-3 py-1 text-[11px] sm:flex"
+							title={`Connected to ${data.strapiUrl}`}
+						>
+							<span class="relative flex h-2 w-2">
+								<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+								<span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+							</span>
+							<span class="text-slate-400">Strapi:</span>
+							<span class="max-w-[220px] truncate font-mono font-medium text-emerald-300">
+								{data.strapiUrl.replace(/^https?:\/\//, '')}
+							</span>
+						</div>
+					{/if}
 
 					<form method="POST" action="/login?/logout">
 						<button

@@ -55,9 +55,9 @@ export async function POST({ params, request, getClientAddress }) {
 	const approved = Boolean(body.approved);
 	const dryRun = Boolean(body.dryRun);
 	const onDuplicate = body.onDuplicate || 'cancel'; // 'cancel' | 'create_new' | 'update'
-	const publish = Boolean(body.publish); // Drafts by default! (Principle 5)
+	const publish = Boolean(body.publish); // Drafts by default
 
-	// Principle 3: Human approval is mandatory and enforced server-side
+	// Mandatory human review approval before importing
 	if (!approved && !dryRun) {
 		return json(
 			{
@@ -88,7 +88,7 @@ export async function POST({ params, request, getClientAddress }) {
 			{
 				error: {
 					code: 'SCHEMA_NOT_FOUND',
-					message: `Target collection "${job.contentTypeUid}" was not found in Strapi. It may have been renamed or deleted.`
+					message: `Target content type "${job.contentTypeUid}" was not found in Strapi. It may have been renamed or deleted.`
 				}
 			},
 			{ status: 404 }
@@ -118,7 +118,7 @@ export async function POST({ params, request, getClientAddress }) {
 		);
 	}
 
-	// Scenario A: Strip any extra properties from sourceData that are NOT in the target Strapi schema
+	// Strip any extra properties from sourceData that are NOT in the target Strapi schema
 	const validAttributes = new Set(Object.keys(schema.attributes || {}));
 	for (const key of Object.keys(sourceData)) {
 		if (!validAttributes.has(key)) {
@@ -126,7 +126,7 @@ export async function POST({ params, request, getClientAddress }) {
 		}
 	}
 
-	// Scenario B: Check required fields. Never silently fabricate or import without required values.
+	// Check required fields
 	if (!dryRun) {
 		const missingRequired = [];
 		for (const [attrName, attr] of Object.entries(schema.attributes || {})) {
@@ -194,7 +194,9 @@ export async function POST({ params, request, getClientAddress }) {
 	const isSingleType = schema.kind === 'singleType';
 	const endpoint = isSingleType ? schema.singularName : (schema.pluralName || `${schema.singularName}s`);
 
-	console.log(`[Import] Preparing import for job ${id}: collection=${job.contentTypeUid}, kind=${schema.kind || 'collectionType'}, endpoint=${endpoint}`);
+	console.log(`[STRAPI] Selected Content Type: ${schema.displayName || schema.singularName}`);
+	console.log(`[STRAPI] Type: ${isSingleType ? 'Single Type' : 'Collection Type'}`);
+	console.log(`[STRAPI] API ID: ${endpoint}`);
 
 	// Duplicate detection: check by slug and title (collection types only)
 	const slugToCheck = sourceData.slug;
@@ -211,15 +213,15 @@ export async function POST({ params, request, getClientAddress }) {
 			}
 		} catch (dupErr) {
 			if (dryRun) {
-				console.warn('Dry run: Strapi duplicate check skipped due to connection error:', dupErr);
+				console.warn('Dry run: Strapi duplicate check skipped:', dupErr);
 			} else {
 				console.error('Strapi duplicate check failed:', dupErr);
 				const is404 = dupErr && /** @type {any} */ (dupErr).status === 404;
 				const is401 = dupErr && /** @type {any} */ (dupErr).status === 401;
 				const msg = is404
-					? `Strapi collection endpoint "/api/${endpoint}" was not found (404 Not Found). Please verify that the collection type exists and is enabled in your Strapi CMS.`
+					? `Strapi collection endpoint "/api/${endpoint}" was not found (404 Not Found). Please verify that the collection type exists and is accessible in your Strapi CMS.`
 					: is401
-						? `Strapi authentication failed (401 Unauthorized: Missing or invalid credentials). Please verify that STRAPI_API_TOKEN in your .env file is valid and has Full Access permissions in Strapi Settings > API Tokens (or run "npm run strapi:token" if using local CMS).`
+						? 'Strapi authentication failed (401 Unauthorized). Please verify that STRAPI_API_TOKEN in your .env file is valid.'
 						: dupErr instanceof Error
 							? dupErr.message
 							: String(dupErr);
@@ -379,16 +381,7 @@ export async function POST({ params, request, getClientAddress }) {
 	updateJobState(id, 'importing');
 
 	try {
-		const method = isSingleType ? 'PUT' : (isUpdating && existingEntry ? 'PUT' : 'POST');
-		console.log(`[Import] Submitting payload to Strapi:`, {
-			displayName: schema.displayName,
-			category: isSingleType ? 'Single Type' : 'Collection Type',
-			apiId: isSingleType ? schema.singularName : schema.pluralName,
-			strapiVersion: adapter.version,
-			endpoint: `/api/${endpoint}`,
-			method,
-			draft: !publish
-		});
+		console.log(`[STRAPI] Importing content...`);
 
 		let resultEntry;
 		if (isUpdating && existingEntry) {
@@ -404,7 +397,7 @@ export async function POST({ params, request, getClientAddress }) {
 		}
 
 		const adminUrl = adapter.adminLink(resultEntry, schema.singularName, schema.kind, schema.uid);
-		console.log(`[Import] Import successful for job ${id}: entryId=${resultEntry.id}, documentId=${resultEntry.documentId || 'n/a'}, adminUrl=${adminUrl}`);
+		console.log(`[STRAPI] Import successful: entryId=${resultEntry.id}, documentId=${resultEntry.documentId || 'n/a'}`);
 
 		const finalResult = {
 			success: true,
@@ -432,23 +425,14 @@ export async function POST({ params, request, getClientAddress }) {
 
 		let errMsg;
 		if (is401) {
-			errMsg = `Strapi authentication failed (401 Unauthorized: Missing or invalid credentials). Please verify that STRAPI_API_TOKEN in your .env file is valid and has Full Access permissions in Strapi Settings > API Tokens (or run "npm run strapi:token" if using local CMS).`;
+			errMsg = `Strapi authentication failed (401 Unauthorized). Please verify that STRAPI_API_TOKEN in your .env file is valid and has appropriate permissions.`;
 		} else if (is404) {
-			errMsg = `Strapi ${typeLabel} endpoint "/api/${endpoint}" was not found (404 Not Found). Please verify that the ${typeLabel.toLowerCase()} "${schema.displayName || schema.singularName}" exists (API ID: "${apiId}") and is accessible in your Strapi CMS.`;
+			errMsg = `Strapi ${typeLabel} endpoint "/api/${endpoint}" was not found (404 Not Found). Please verify that the ${typeLabel.toLowerCase()} "${schema.displayName || schema.singularName}" exists (API ID: "${apiId}") in your Strapi CMS.`;
 		} else {
 			errMsg = err instanceof Error ? err.message : String(err);
 		}
 
-		console.error(`[Import Error] Failed for job ${id}:`, {
-			displayName: schema.displayName,
-			category: typeLabel,
-			apiId,
-			strapiVersion: adapter.version,
-			endpoint: `/api/${endpoint}`,
-			method: isSingleType ? 'PUT' : 'POST',
-			status: (err && /** @type {any} */ (err).status) || 500,
-			message: errMsg
-		});
+		console.error(`[STRAPI] Import failed for job ${id}:`, errMsg);
 
 		updateJobState(id, 'failed', { error: errMsg });
 		return json(

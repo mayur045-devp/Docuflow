@@ -1,5 +1,4 @@
 import { getEnv } from '../env.js';
-import { getAdminInformation } from '../schema/loader-admin.js';
 
 let cachedVersion = null;
 let manualOverride = null;
@@ -24,13 +23,7 @@ export async function detectStrapiVersion({ forceRefresh = false } = {}) {
 		return manualOverride;
 	}
 
-	const {
-		STRAPI_URL,
-		STRAPI_VERSION,
-		STRAPI_API_TOKEN,
-		STRAPI_ADMIN_EMAIL,
-		STRAPI_ADMIN_PASSWORD
-	} = getEnv();
+	const { STRAPI_URL, STRAPI_VERSION, STRAPI_API_TOKEN } = getEnv();
 
 	if (STRAPI_VERSION === '4' || STRAPI_VERSION === '5') {
 		return STRAPI_VERSION;
@@ -40,25 +33,9 @@ export async function detectStrapiVersion({ forceRefresh = false } = {}) {
 		return cachedVersion;
 	}
 
-	// 1. Try admin information if admin credentials are provided
-	if (STRAPI_ADMIN_EMAIL && STRAPI_ADMIN_PASSWORD) {
-		try {
-			const info = await getAdminInformation(STRAPI_URL, '');
-			if (info?.strapiVersion) {
-				const major = info.strapiVersion.split('.')[0];
-				if (major === '5' || major === '4') {
-					cachedVersion = /** @type {'4' | '5'} */ (major);
-					return cachedVersion;
-				}
-			}
-		} catch {
-			// fallback to REST probe
-		}
-	}
-
-	// 2. Probe REST endpoint and inspect response shape
+	// Probe live endpoints to detect response structure
 	try {
-		const testEndpoints = ['/api/service-pages', '/api/articles', '/api/categories'];
+		const testEndpoints = ['/api/articles', '/api/blogs', '/api/casestudys'];
 		for (const ep of testEndpoints) {
 			const headers = STRAPI_API_TOKEN ? { Authorization: `Bearer ${STRAPI_API_TOKEN}` } : {};
 			const res = await fetch(`${STRAPI_URL}${ep}?pagination[pageSize]=1`, { headers });
@@ -81,10 +58,9 @@ export async function detectStrapiVersion({ forceRefresh = false } = {}) {
 			}
 		}
 	} catch {
-		// Default to v5 if unreachable or modern default
+		// fallback to v5
 	}
 
-	// Default fallback
 	cachedVersion = '5';
 	return '5';
 }

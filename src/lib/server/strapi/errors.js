@@ -14,7 +14,7 @@ export function normalizeStrapiError(strapiError, status = 500) {
 
 	if (status === 401 || code === 'UnauthorizedError') {
 		message =
-			'Missing or invalid credentials: The STRAPI_API_TOKEN in your .env was rejected or is missing. Please verify that your API token is valid and has Full Access permissions in Strapi Settings > API Tokens (or run "npm run strapi:token" if using the local CMS).';
+			'Missing or invalid credentials: The STRAPI_API_TOKEN in your .env was rejected or is missing. Please verify that your API token is valid and has appropriate permissions in Strapi Settings > API Tokens.';
 	}
 
 	/** @type {{ path: string, message: string }[]} */

@@ -133,6 +133,7 @@ export interface ComponentSeo extends Struct.ComponentSchema {
 		keywords: Schema.Attribute.String;
 		metaDescription: Schema.Attribute.String;
 		metaRobots: Schema.Attribute.String;
+		metaSocial: Schema.Attribute.Component<'component.meta-social', true>;
 		metaTitle: Schema.Attribute.String;
 		metaViewPort: Schema.Attribute.String;
 		shareImage: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;

@@ -13,12 +13,25 @@ try {
 
 const envSchema = z
 	.object({
-		STRAPI_URL: z.string().url().default('http://localhost:1337'),
-		STRAPI_API_TOKEN: z.string().default(''),
+		STRAPI_URL: z
+			.string({
+				required_error:
+					'STRAPI_URL is not configured. Please configure the pre-production Strapi URL (https://strapi-preprod.12thwonder.com).'
+			})
+			.url('STRAPI_URL must be a valid URL (e.g. https://strapi-preprod.12thwonder.com)')
+			.refine(
+				(val) => !val.includes('localhost') && !val.includes('127.0.0.1'),
+				'Localhost Strapi is strictly disabled. DocuFlow must connect to the pre-production Strapi CMS (https://strapi-preprod.12thwonder.com).'
+			),
+		STRAPI_API_TOKEN: z
+			.string({
+				required_error:
+					'STRAPI_API_TOKEN is not configured. Please configure your Strapi API token.'
+			})
+			.min(1, 'STRAPI_API_TOKEN is required for Strapi CMS communication.'),
 		STRAPI_VERSION: z.enum(['auto', '4', '5']).default('auto'),
 		STRAPI_ADMIN_EMAIL: z.string().optional().default(''),
 		STRAPI_ADMIN_PASSWORD: z.string().optional().default(''),
-		STRAPI_PROJECT_PATH: z.string().optional().default(''),
 		STRAPI_ADMIN_URL: z.string().optional().default(''),
 
 		AI_PROVIDER: z.enum(['gemini', 'mock']).default('mock'),
