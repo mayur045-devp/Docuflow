@@ -17,15 +17,8 @@
     "description": {
       "type": "string"
     },
-    "coverImage": {
-      "type": "media",
-      "multiple": false,
-      "allowedTypes": [
-        "images",
-        "files",
-        "videos",
-        "audios"
-      ]
+    "slug": {
+      "type": "uid"
     },
     "content": {
       "type": "blocks"
@@ -38,6 +31,16 @@
       "component": "component.seo",
       "repeatable": false
     },
+    "coverImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
     "AuthorData": {
       "type": "component",
       "component": "component.author-data",
@@ -48,6 +51,11 @@
       "component": "component.content-new",
       "repeatable": true
     },
+    "button": {
+      "type": "component",
+      "component": "button.button",
+      "repeatable": false
+    },
     "buttonTitle": {
       "type": "string"
     },
@@ -55,6 +63,9 @@
       "type": "string"
     },
     "Time": {
+      "type": "string"
+    },
+    "categoryname": {
       "type": "string"
     }
   }

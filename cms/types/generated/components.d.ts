@@ -79,6 +79,7 @@ export interface ComponentContentNew extends Struct.ComponentSchema {
 	};
 	attributes: {
 		content: Schema.Attribute.Text;
+		image: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
 		title: Schema.Attribute.String;
 	};
 }

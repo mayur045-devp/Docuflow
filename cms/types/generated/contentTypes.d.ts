@@ -461,8 +461,10 @@ export interface ApiBlogBlog extends Struct.CollectionTypeSchema {
 	};
 	attributes: {
 		AuthorData: Schema.Attribute.Component<'component.author-data', false>;
+		button: Schema.Attribute.Component<'button.button', false>;
 		buttonSubtitle: Schema.Attribute.String;
 		buttonTitle: Schema.Attribute.String;
+		categoryname: Schema.Attribute.String;
 		content: Schema.Attribute.Blocks;
 		contentNew: Schema.Attribute.Component<'component.content-new', true>;
 		coverImage: Schema.Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
@@ -475,6 +477,7 @@ export interface ApiBlogBlog extends Struct.CollectionTypeSchema {
 			Schema.Attribute.Private;
 		publishedAt: Schema.Attribute.DateTime;
 		seo: Schema.Attribute.Component<'component.seo', false>;
+		slug: Schema.Attribute.UID;
 		Time: Schema.Attribute.String;
 		title: Schema.Attribute.String;
 		updatedAt: Schema.Attribute.DateTime;
