@@ -311,10 +311,28 @@ function formatScalarValue(rawVal, attrDef) {
 		case 'enumeration': {
 			const clean = str.replace(/<[^>]*>/g, '').trim();
 			if (Array.isArray(attrDef.enum) && attrDef.enum.length > 0) {
-				const match = attrDef.enum.find((e) => normalizeKey(e) === normalizeKey(clean));
-				return match || clean;
+				const exactMatch = attrDef.enum.find((e) => normalizeKey(e) === normalizeKey(clean));
+				if (exactMatch) return exactMatch;
+
+				// Check if any single enum value is distinctly mentioned in clean text (e.g. from template options)
+				const cleanLower = clean.toLowerCase();
+				const matchedOptions = attrDef.enum.filter((e) => {
+					const normE = normalizeKey(e);
+					return normE && cleanLower.includes(normE);
+				});
+				if (matchedOptions.length === 1) {
+					return matchedOptions[0];
+				}
+
+				// If multiple options were listed (e.g. "Choose here: Plain / Download" template text)
+				// use default if available
+				if (matchedOptions.length > 1 && attrDef.default && attrDef.enum.includes(attrDef.default)) {
+					return attrDef.default;
+				}
+
+				return clean || null;
 			}
-			return clean;
+			return clean || null;
 		}
 
 		case 'media': {

@@ -346,6 +346,8 @@ export async function POST({ params, request, getClientAddress }) {
 							} else {
 								resolvedMedia.push({ field: fieldPath, imageId, status: 'ready_for_upload' });
 							}
+						} else {
+							dataObj[key] = attr.multiple ? [] : null;
 						}
 					}
 				}
@@ -386,7 +388,14 @@ export async function POST({ params, request, getClientAddress }) {
 	updateJobState(id, 'importing');
 
 	try {
+		const method = isUpdating && existingEntry ? 'PUT' : (isSingleType ? 'PUT' : 'POST');
 		console.log(`[STRAPI] Importing content...`);
+		console.log(`Selected content type UID: ${schema.uid}`);
+		console.log(`Selected API ID: ${endpoint}`);
+		console.log(`Selected kind: ${schema.kind || 'collectionType'}`);
+		console.log(`Selected schema ID: ${schema.uid}`);
+		console.log(`Import endpoint: /api/${endpoint}`);
+		console.log(`HTTP method: ${method}`);
 
 		let resultEntry;
 		if (isUpdating && existingEntry) {
@@ -445,6 +454,7 @@ export async function POST({ params, request, getClientAddress }) {
 	} catch (err) {
 		const is401 = err && /** @type {any} */ (err).status === 401;
 		const is404 = err && /** @type {any} */ (err).status === 404;
+		const is400 = err && /** @type {any} */ (err).status === 400;
 		const typeLabel = isSingleType ? 'Single Type' : 'Collection Type';
 		const apiId = isSingleType ? schema.singularName : (schema.pluralName || `${schema.singularName}s`);
 
@@ -453,6 +463,14 @@ export async function POST({ params, request, getClientAddress }) {
 			errMsg = `Strapi authentication failed (401 Unauthorized). Please verify that STRAPI_API_TOKEN in your .env file is valid and has appropriate permissions.`;
 		} else if (is404) {
 			errMsg = `Strapi ${typeLabel} endpoint "/api/${endpoint}" was not found (404 Not Found). Please verify that the ${typeLabel.toLowerCase()} "${schema.displayName || schema.singularName}" exists (API ID: "${apiId}") in your Strapi CMS.`;
+		} else if (is400) {
+			const errDetails = /** @type {any} */ (err).details;
+			const fieldIssues = errDetails?.issues?.length
+				? errDetails.issues.map((i) => (i.path ? `Field: "${i.path}" - ${i.message}` : i.message)).join('\n')
+				: null;
+			errMsg = fieldIssues
+				? `Strapi import failed\nStatus: 400\nEndpoint: /api/${endpoint}\n${fieldIssues}`
+				: `Strapi import failed (400 Bad Request)\nStatus: 400\nEndpoint: /api/${endpoint}\nMessage: ${err instanceof Error ? err.message : String(err)}`;
 		} else {
 			errMsg = err instanceof Error ? err.message : String(err);
 		}

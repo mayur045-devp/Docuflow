@@ -217,6 +217,7 @@ export function normalizeContentType(raw, componentRegistry = {}, visited = new 
 		raw.apiID ||
 		'Untitled';
 	const resolvedKind = schema.kind || raw.kind || 'collectionType';
+	const apiId = resolvedKind === 'singleType' ? singularName : pluralName;
 	const draftAndPublish =
 		schema.draftAndPublish !== undefined
 			? Boolean(schema.draftAndPublish)
@@ -232,6 +233,8 @@ export function normalizeContentType(raw, componentRegistry = {}, visited = new 
 		displayName,
 		singularName,
 		pluralName,
+		apiId,
+		endpoint: apiId,
 		description: schema.description || info.description || '',
 		draftAndPublish,
 		attributes: normalizedAttributes

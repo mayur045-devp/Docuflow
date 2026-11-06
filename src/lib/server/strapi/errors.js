@@ -35,9 +35,21 @@ export function normalizeStrapiError(strapiError, status = 500) {
 		});
 	}
 
+	let finalMessage = redact(message);
+	if (issues.length > 0) {
+		const fieldDetails = issues
+			.map((i) => (i.path ? `Field "${i.path}": ${i.message}` : i.message))
+			.filter(Boolean)
+			.join(' | ');
+		if (fieldDetails && !finalMessage.includes(fieldDetails)) {
+			finalMessage = `${finalMessage} — ${fieldDetails}`;
+		}
+	}
+
 	return {
 		code,
-		message: redact(message),
-		issues
+		message: finalMessage,
+		issues,
+		raw: strapiError
 	};
 }

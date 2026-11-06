@@ -189,4 +189,75 @@ describe('Dynamic Strapi Schema Mapping & Validation', () => {
 		const json = await response.json();
 		expect(json.dryRun).toBe(true);
 	}, 20000);
+
+	it('switches between content types dynamically without retaining previous schemas or endpoints', () => {
+		const { normalizeContentType } = require('../src/lib/server/schema/normalize.js');
+		const { normalizeStrapiError } = require('../src/lib/server/strapi/errors.js');
+
+		// Simulating Blog schema
+		const blogSchema = {
+			kind: 'collectionType',
+			info: { singularName: 'titan-blog', pluralName: 'titan-blogs', displayName: 'Titan Blog' },
+			attributes: { title: { type: 'string', required: true } }
+		};
+
+		// Simulating Case Study schema
+		const caseStudySchema = {
+			kind: 'collectionType',
+			info: { singularName: 'titan-case-study', pluralName: 'titan-case-studys', displayName: 'Titan Case Study' },
+			attributes: {
+				title: { type: 'string', required: true },
+				posttype: { type: 'enumeration', enum: ['plain', 'download'], default: 'plain' }
+			}
+		};
+
+		// 1. Select Blog
+		const normBlog = normalizeContentType(blogSchema, {});
+		expect(normBlog.endpoint).toBe('titan-blogs');
+		expect(`/api/${normBlog.endpoint}`).toBe('/api/titan-blogs');
+		expect(normBlog.apiId).toBe('titan-blogs');
+		expect(normBlog.attributes.posttype).toBeUndefined();
+
+		// 2. Switch to Case Study
+		const normCaseStudy = normalizeContentType(caseStudySchema, {});
+		expect(normCaseStudy.endpoint).toBe('titan-case-studys');
+		expect(`/api/${normCaseStudy.endpoint}`).toBe('/api/titan-case-studys');
+		expect(normCaseStudy.apiId).toBe('titan-case-studys');
+		expect(normCaseStudy.attributes.posttype).toBeDefined();
+
+		// 3. Switch back to Blog
+		const normBlogAgain = normalizeContentType(blogSchema, {});
+		expect(normBlogAgain.endpoint).toBe('titan-blogs');
+		expect(`/api/${normBlogAgain.endpoint}`).toBe('/api/titan-blogs');
+		expect(normBlogAgain.apiId).toBe('titan-blogs');
+		expect(normBlogAgain.attributes.posttype).toBeUndefined();
+
+		// 4. Test enum normalization for template list in case study
+		const { payload } = buildStrapiPayload(
+			{ title: 'Case Study 1', posttype: 'Choose herePlainDownload' },
+			normCaseStudy,
+			{ formatRelation: (v) => v }
+		);
+		expect(payload.posttype).toBe('plain');
+
+		// 5. Test detailed 400 validation error formatting
+		const mockStrapi400 = {
+			error: {
+				status: 400,
+				name: 'ValidationError',
+				message: '2 errors occurred',
+				details: {
+					errors: [
+						{ path: ['posttype'], message: 'posttype must be one of the following values: plain, download' },
+						{ path: ['rel'], message: 'Invalid relations' }
+					]
+				}
+			}
+		};
+		const normalizedErr = normalizeStrapiError(mockStrapi400, 400);
+		expect(normalizedErr.issues).toHaveLength(2);
+		expect(normalizedErr.issues[0].path).toBe('posttype');
+		expect(normalizedErr.message).toContain('Field "posttype"');
+		expect(normalizedErr.message).toContain('Field "rel"');
+	});
 });

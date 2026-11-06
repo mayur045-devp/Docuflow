@@ -2,6 +2,10 @@ import { htmlToStrapiBlocks } from './blocks.js';
 import { htmlToMarkdown } from './richtext.js';
 import { generateSlug } from './slug.js';
 
+function normalizeKey(str) {
+	return String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 /**
  * Safely parses a string or value into JSON, handling HTML entities, smart quotes,
  * and Word document export artifacts. If parsing fails, returns null.
@@ -250,23 +254,48 @@ export function buildStrapiPayload(rawData, contentTypeDef, adapter, options = {
 
 			case 'enumeration': {
 				const str = String(value).trim();
-				payload[key] = str || null;
+				if (Array.isArray(attr.enum) && attr.enum.length > 0) {
+					const exact = attr.enum.find((e) => e === str || normalizeKey(e) === normalizeKey(str));
+					if (exact) {
+						payload[key] = exact;
+					} else {
+						const cleanLower = str.toLowerCase();
+						const matchedOptions = attr.enum.filter((e) => {
+							const normE = normalizeKey(e);
+							return normE && cleanLower.includes(normE);
+						});
+						if (matchedOptions.length === 1) {
+							payload[key] = matchedOptions[0];
+						} else if (matchedOptions.length > 1 && attr.default && attr.enum.includes(attr.default)) {
+							payload[key] = attr.default;
+						} else if (str) {
+							payload[key] = str;
+						} else {
+							payload[key] = null;
+						}
+					}
+				} else {
+					payload[key] = str || null;
+				}
 				break;
 			}
 
 			case 'media': {
 				if (Array.isArray(value)) {
 					const validMedia = value.filter(
-						(v) => v !== null && v !== undefined && v !== ''
+						(v) => v !== null && v !== undefined && v !== '' && !String(v).startsWith('img-')
 					);
 					payload[key] = validMedia.length > 0 ? validMedia : [];
 				} else if (typeof value === 'object' && value?.$docImage) {
+					payload[key] = null;
+				} else if (typeof value === 'number') {
 					payload[key] = value;
 				} else if (
-					typeof value === 'number' ||
-					(typeof value === 'string' && value.trim())
+					typeof value === 'string' &&
+					value.trim() &&
+					!value.startsWith('img-')
 				) {
-					payload[key] = value;
+					payload[key] = value.trim();
 				} else {
 					payload[key] = attr.multiple ? [] : null;
 				}

@@ -86,7 +86,13 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 
 				if (res.status === 400) {
 					errorCode = 'BAD_REQUEST';
-					message = `Strapi server rejected the request as a Bad Request (400). Please check URL formatting and parameters. Endpoint: ${pathAndQuery}`;
+					const normalized = normalizeStrapiError(errBody, res.status);
+					const fieldIssues = normalized.issues
+						.map((i) => (i.path ? `Field "${i.path}": ${i.message}` : i.message))
+						.join(' | ');
+					message = fieldIssues
+						? `Strapi validation error (400 Bad Request) on ${pathAndQuery}: ${fieldIssues}`
+						: `Strapi rejected the request as a Bad Request (400) on ${pathAndQuery}: ${normalized.message}`;
 				} else if (res.status === 401) {
 					errorCode = 'INVALID_API_TOKEN';
 					message = `Strapi server is reachable, but the API token was rejected. (401 Unauthorized for Host: ${host})`;
