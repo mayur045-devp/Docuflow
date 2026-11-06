@@ -1,5 +1,6 @@
 import { strapiFetch } from '../client.js';
 import { getEnv } from '../../env.js';
+import { getActiveConnection, normalizeStrapiUrl } from '../connection.js';
 
 export const v4Adapter = {
 	version: '4',
@@ -138,8 +139,11 @@ export const v4Adapter = {
 	 * @param {string} [uid='']
 	 */
 	adminLink(entry, singularName, kind = 'collectionType', uid = '') {
-		const { STRAPI_URL, STRAPI_ADMIN_URL } = getEnv();
-		const base = STRAPI_ADMIN_URL || `${STRAPI_URL}/admin`;
+		const { STRAPI_ADMIN_URL } = getEnv();
+		const conn = getActiveConnection();
+		const base = STRAPI_ADMIN_URL
+			? normalizeStrapiUrl(STRAPI_ADMIN_URL)
+			: `${normalizeStrapiUrl(conn.strapiUrl)}/admin`;
 		const typeUid = uid || `api::${singularName}.${singularName}`;
 		if (kind === 'singleType') {
 			return `${base}/content-manager/singleType/${typeUid}`;
@@ -154,6 +158,15 @@ export const v4Adapter = {
 	 */
 	formatRelation(relation) {
 		if (!relation) return null;
+		if (Array.isArray(relation)) {
+			if (relation.length === 0) return { set: [] };
+			return {
+				set: relation.map((item) => (typeof item === 'object' && item !== null ? item.id : item))
+			};
+		}
+		if (typeof relation === 'object' && ('set' in relation || 'connect' in relation || 'disconnect' in relation)) {
+			return relation;
+		}
 		const id = typeof relation === 'object' ? relation.id : relation;
 		return { connect: [id] };
 	}

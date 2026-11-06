@@ -87,12 +87,11 @@ CRITICAL RULES:
    - DO NOT create arbitrary fields or send unsupported properties in the "data" object.
    - Record every ignored section in the "unmapped" array with its source block IDs and reason: "Section has no corresponding field in target Strapi collection".
 4. MISSING DOCUMENT CONTENT (SCENARIO B): The target Strapi schema may define more fields than the uploaded document provides (e.g. SEO metadata, cover images, author info, extra repeatable items, related items).
+   - Missing document data is a completely normal, valid state—NEVER AN ERROR.
    - If a schema field has no corresponding data in the document, KEEP IT EMPTY.
-   - For strings/text/blocks/richtext: return empty string "".
-   - For repeatable components: return an empty array [].
-   - For single components: return null.
-   - For media and relations: return null.
-   - NEVER generate fake, sample, or fabricated data. If a field is missing, leave it empty.
+   - For strings/text/blocks/richtext/numbers/booleans/single components/media/relations: return null or empty string "".
+   - For repeatable components and dynamic zones: return an empty array [].
+   - CRITICAL: NEVER generate fake, sample, or fabricated data (e.g. do NOT invent "Unknown", "Tesla", or dummy values). If information is absent from the document, it must remain empty.
    - If a strictly REQUIRED field is missing, also add a note to the "warnings" array: 'Required field "[field_name]" was not found in document.'
 5. SEMANTIC MATCHING (SCENARIO C): Word documents use diverse layouts, phrasing, and headings (e.g. "Our Story", "About Us", "Who We Are", "Overview"). Map sections according to semantic meaning rather than exact keyword matches.
 6. VERBATIM ACCURACY: Copy text verbatim from the source document. Do not invent, paraphrase, or alter factual data. Preserve original ordering of bullet lists and repeatable components.
@@ -102,7 +101,9 @@ CRITICAL RULES:
 10. MEDIA FIELDS: If a media field is in the schema, find the nearest embedded image from the document markdown (e.g. ![Image: img-1](docimg://img-1)) and set the field value to the imageId (e.g. "img-1"). If no relevant image exists in the document, set to null.
 11. RELATION FIELDS: For relation fields, return the human-readable lookup text (e.g. category name like "Cloud Architecture"), NEVER internal numeric IDs. If absent, set to null.
 12. SLUGS & UIDS: Slugs/UIDs will be verified and formatted by the server; you may leave them empty or suggest a URL-safe kebab-case string.
-13. SOURCE TRACKING: In "fieldNotes", record every mapped field's "path" (e.g. "title", "services.0.description"), the "sourceBlockIds" (the [bID] tags from the markdown, e.g. ["b1"]), and your "confidence" score between 0.0 and 1.0.
+13. FIELD EVALUATION CONTRACT: In "fieldNotes", evaluate every schema field:
+   - For fields FOUND in the document: set "field": "[field_name]", "status": "found", "confidence": 0.8-1.0, and "sourceBlockIds" (e.g. ["b1"]).
+   - For fields MISSING in the document: set "field": "[field_name]", "status": "missing", "value": null, "confidence": 0.0, and "sourceBlockIds": [].
 
 <DOCUMENT>
 ${markdown}

@@ -1,10 +1,10 @@
-import { getEnv } from '$lib/server/env.js';
+import { getActiveConnection } from '$lib/server/strapi/connection.js';
 
 export async function load() {
 	try {
-		const env = getEnv();
+		const conn = getActiveConnection();
 		return {
-			strapiUrl: env.STRAPI_URL
+			strapiUrl: conn.strapiUrl
 		};
 	} catch {
 		return {
@@ -12,4 +12,3 @@ export async function load() {
 		};
 	}
 }
-

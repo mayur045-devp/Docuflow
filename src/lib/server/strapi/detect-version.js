@@ -1,7 +1,16 @@
-import { getEnv } from '../env.js';
+import {
+	getActiveConnection,
+	buildStrapiEndpointUrl,
+	normalizeStrapiUrl,
+	onConnectionChange
+} from './connection.js';
 
 let cachedVersion = null;
 let manualOverride = null;
+
+onConnectionChange(() => {
+	cachedVersion = null;
+});
 
 /**
  * Sets a manual override for Strapi version ('4' | '5' | null).
@@ -12,47 +21,68 @@ export function setVersionOverride(version) {
 }
 
 /**
- * Detects whether the Strapi instance is version 4 or 5.
+ * Detects whether the target Strapi instance is version 4 or 5.
  *
  * @param {object} [options]
  * @param {boolean} [options.forceRefresh=false]
+ * @param {{ strapiUrl: string, apiToken?: string, version?: string }} [options.connection]
  * @returns {Promise<'4' | '5'>}
  */
-export async function detectStrapiVersion({ forceRefresh = false } = {}) {
+export async function detectStrapiVersion({ forceRefresh = false, connection = null } = {}) {
 	if (manualOverride) {
 		return manualOverride;
 	}
 
-	const { STRAPI_URL, STRAPI_VERSION, STRAPI_API_TOKEN } = getEnv();
+	const conn = connection || getActiveConnection();
+	const strapiUrl = normalizeStrapiUrl(conn.strapiUrl);
+	const strapiToken = conn.apiToken || '';
 
-	if (STRAPI_VERSION === '4' || STRAPI_VERSION === '5') {
-		return STRAPI_VERSION;
+	if (conn.version === '4' || conn.version === '5') {
+		return conn.version;
 	}
 
 	if (!forceRefresh && cachedVersion) {
 		return cachedVersion;
 	}
 
-	// Probe live endpoints to detect response structure
-	try {
-		const testEndpoints = ['/api/articles', '/api/blogs', '/api/casestudys'];
-		for (const ep of testEndpoints) {
-			const headers = STRAPI_API_TOKEN ? { Authorization: `Bearer ${STRAPI_API_TOKEN}` } : {};
-			const res = await fetch(`${STRAPI_URL}${ep}?pagination[pageSize]=1`, { headers });
-			if (res.ok) {
-				const json = await res.json();
-				const item = Array.isArray(json.data) ? json.data[0] : json.data;
+	const headers = new Headers();
+	if (strapiToken) {
+		headers.set('Authorization', `Bearer ${strapiToken}`);
+	}
 
-				if (item) {
-					// In Strapi 5, entries have `documentId` at root and flat attributes (no `.attributes`)
-					if ('documentId' in item && !('attributes' in item)) {
-						cachedVersion = '5';
-						return '5';
-					}
-					// In Strapi 4, entries have `{ id, attributes }`
-					if ('attributes' in item) {
-						cachedVersion = '4';
-						return '4';
+	// 1. Probe Content-Type Builder to check schema format
+	try {
+		const ctbUrl = buildStrapiEndpointUrl(
+			strapiUrl,
+			'/api/content-type-builder/content-types'
+		);
+		const ctbRes = await fetch(ctbUrl, { headers });
+		if (ctbRes.ok) {
+			const json = await ctbRes.json();
+			const items = json.data || [];
+			// Find any collection type from discovered schema to test entry shape
+			const collectionItem = items.find(
+				(i) => i.uid?.startsWith('api::') && i.schema?.kind === 'collectionType'
+			);
+
+			if (collectionItem?.schema?.pluralName) {
+				const entryUrl = buildStrapiEndpointUrl(
+					strapiUrl,
+					`/api/${collectionItem.schema.pluralName}?pagination[pageSize]=1`
+				);
+				const entryRes = await fetch(entryUrl, { headers });
+				if (entryRes.ok) {
+					const entryJson = await entryRes.json();
+					const sample = Array.isArray(entryJson.data) ? entryJson.data[0] : entryJson.data;
+					if (sample) {
+						if ('documentId' in sample && !('attributes' in sample)) {
+							cachedVersion = '5';
+							return '5';
+						}
+						if ('attributes' in sample) {
+							cachedVersion = '4';
+							return '4';
+						}
 					}
 				}
 			}

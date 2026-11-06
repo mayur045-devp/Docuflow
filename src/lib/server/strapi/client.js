@@ -1,7 +1,11 @@
-import { getEnv } from '../env.js';
 import { redact } from '../security/redact.js';
 import { normalizeStrapiError } from './errors.js';
 import { uploadMedia } from './media.js';
+import {
+	getActiveConnection,
+	buildStrapiEndpointUrl,
+	normalizeStrapiUrl
+} from './connection.js';
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_NETWORK_RETRIES = 2;
@@ -10,20 +14,35 @@ const MAX_NETWORK_RETRIES = 2;
  * Executes a resilient, authenticated request to Strapi.
  *
  * @param {string} pathAndQuery
- * @param {RequestInit & { timeoutMs?: number }} [options]
+ * @param {RequestInit & { timeoutMs?: number, connection?: { strapiUrl: string, apiToken?: string } }} [options]
  * @returns {Promise<any>}
  */
 export async function strapiFetch(pathAndQuery, options = {}) {
-	const { STRAPI_URL, STRAPI_API_TOKEN } = getEnv();
-	const url = `${STRAPI_URL}${pathAndQuery.startsWith('/') ? '' : '/'}${pathAndQuery}`;
+	const conn = options.connection || getActiveConnection();
+	const strapiUrl = normalizeStrapiUrl(conn.strapiUrl);
+	const strapiToken = conn.apiToken || '';
+
+	if (!strapiUrl) {
+		throw new Error('STRAPI_URL is not configured. Please configure your Strapi CMS URL.');
+	}
+
+	const url = buildStrapiEndpointUrl(strapiUrl, pathAndQuery);
 	const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
 
+	let host = 'unknown';
+	try {
+		host = new URL(url).host;
+	} catch {
+		// ignore
+	}
+
 	const headers = new Headers(options.headers || {});
-	if (STRAPI_API_TOKEN && !headers.has('Authorization')) {
-		headers.set('Authorization', `Bearer ${STRAPI_API_TOKEN}`);
+	if (strapiToken && !headers.has('Authorization')) {
+		headers.set('Authorization', `Bearer ${strapiToken}`);
 	}
 
 	let lastError = null;
+	const startTime = Date.now();
 
 	for (let attempt = 0; attempt <= MAX_NETWORK_RETRIES; attempt++) {
 		const controller = new AbortController();
@@ -37,6 +56,14 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 			});
 
 			clearTimeout(timeoutId);
+			const duration = Date.now() - startTime;
+
+			// Server-side diagnostic log (Requirement 13)
+			console.log(`[Strapi Connection]`);
+			console.log(`Host: ${host}`);
+			console.log(`Endpoint: ${pathAndQuery}`);
+			console.log(`Status: ${res.status}`);
+			console.log(`Duration: ${duration}ms`);
 
 			if (res.ok) {
 				// Handle 204 No Content
@@ -52,15 +79,26 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 				errBody = { message: res.statusText };
 			}
 
-			// Do NOT retry client errors (400, 401, 403, 404, 422) except rate-limit 429
+			// Do NOT retry client errors (400, 401, 403, 404, 405, 422) except rate-limit 429
 			if (res.status !== 429 && res.status < 500) {
 				let message;
-				if (res.status === 401) {
-					message = `Strapi authentication failed (401 Unauthorized). The configured API token may be invalid or expired. Please check STRAPI_API_TOKEN in .env. URL: ${STRAPI_URL}`;
+				let errorCode = `HTTP_${res.status}`;
+
+				if (res.status === 400) {
+					errorCode = 'BAD_REQUEST';
+					message = `Strapi server rejected the request as a Bad Request (400). Please check URL formatting and parameters. Endpoint: ${pathAndQuery}`;
+				} else if (res.status === 401) {
+					errorCode = 'INVALID_API_TOKEN';
+					message = `Strapi server is reachable, but the API token was rejected. (401 Unauthorized for Host: ${host})`;
 				} else if (res.status === 403) {
-					message = `Strapi permission denied (403 Forbidden). The configured API token lacks the required permissions for "${pathAndQuery}".`;
+					errorCode = 'FORBIDDEN';
+					message = `Strapi server is reachable and the token is valid, but the token does not have permission for this operation. Endpoint: "${pathAndQuery}"`;
 				} else if (res.status === 404) {
-					message = `Strapi endpoint not found (404 Not Found): "${pathAndQuery}" at ${STRAPI_URL}.`;
+					errorCode = 'ENDPOINT_NOT_FOUND';
+					message = `The Strapi URL is reachable, but the requested API endpoint was not found (404 Not Found): "${pathAndQuery}" on Host: ${host}`;
+				} else if (res.status === 405) {
+					errorCode = 'METHOD_NOT_ALLOWED';
+					message = `The Strapi endpoint does not allow the requested HTTP method: "${pathAndQuery}"`;
 				} else {
 					const normalized = normalizeStrapiError(errBody, res.status);
 					message = normalized.message;
@@ -69,6 +107,8 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 				const err = new Error(message);
 				// @ts-ignore
 				err.status = res.status;
+				// @ts-ignore
+				err.errorCode = errorCode;
 				// @ts-ignore
 				err.details = normalizeStrapiError(errBody, res.status);
 				throw err;
@@ -81,12 +121,19 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 				continue;
 			}
 
-			const normalized = normalizeStrapiError(errBody, res.status);
-			const err = new Error(normalized.message);
+			let errorMsg = `Strapi server returned error ${res.status}`;
+			if (res.status >= 502 && res.status <= 504) {
+				errorMsg = `The Strapi domain is reachable, but the upstream Strapi server/proxy is unavailable (${res.status} on ${host}).`;
+			} else {
+				const normalized = normalizeStrapiError(errBody, res.status);
+				errorMsg = normalized.message;
+			}
+
+			const err = new Error(errorMsg);
 			// @ts-ignore
 			err.status = res.status;
 			// @ts-ignore
-			err.details = normalized;
+			err.errorCode = res.status >= 502 ? 'UPSTREAM_UNAVAILABLE' : `HTTP_${res.status}`;
 			throw err;
 		} catch (err) {
 			clearTimeout(timeoutId);
@@ -105,21 +152,45 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 		}
 	}
 
+	const duration = Date.now() - startTime;
 	const safeMessage = redact(lastError instanceof Error ? lastError.message : String(lastError));
-	let descriptiveMessage = `Strapi request failed after retries: ${safeMessage}`;
 
-	// Provide actionable guidance on network / connection refusal
-	if (
+	console.log(`[Strapi Connection]`);
+	console.log(`Host: ${host}`);
+	console.log(`Endpoint: ${pathAndQuery}`);
+	console.log(`Status: Failed after retries`);
+	console.log(`Duration: ${duration}ms`);
+	console.log(`Error: ${safeMessage}`);
+
+	let descriptiveMessage = `Strapi request failed: ${safeMessage}`;
+	let errorCode = 'NETWORK_ERROR';
+
+	if (safeMessage.includes('abort') || safeMessage.includes('timeout')) {
+		errorCode = 'TIMEOUT';
+		descriptiveMessage = `Connection to the Strapi server at ${strapiUrl} timed out after ${timeoutMs}ms.`;
+	} else if (
 		safeMessage.includes('fetch failed') ||
 		safeMessage.includes('ECONNREFUSED') ||
 		safeMessage.includes('ENOTFOUND')
 	) {
-		descriptiveMessage = `Cannot connect to Strapi at ${getEnv().STRAPI_URL} (${safeMessage}). Please verify network connectivity and that the Strapi server is online and reachable.`;
+		errorCode = 'NETWORK_ERROR';
+		descriptiveMessage = `The application could not establish a connection to the supplied Strapi URL at ${strapiUrl}.`;
+	} else if (
+		safeMessage.includes('CERT_') ||
+		safeMessage.includes('UNABLE_TO_VERIFY') ||
+		safeMessage.includes('self-signed') ||
+		safeMessage.includes('SSL') ||
+		safeMessage.includes('TLS')
+	) {
+		errorCode = 'TLS_ERROR';
+		descriptiveMessage = `A TLS/SSL security certificate error occurred while connecting to ${strapiUrl}.`;
 	}
 
 	const errorToThrow = new Error(descriptiveMessage);
 	// @ts-ignore
 	errorToThrow.status = 502;
+	// @ts-ignore
+	errorToThrow.errorCode = errorCode;
 	// @ts-ignore
 	errorToThrow.isConnectionError = true;
 	throw errorToThrow;
@@ -130,16 +201,16 @@ export async function strapiFetch(pathAndQuery, options = {}) {
  */
 export const strapiClient = {
 	/**
-	 * Returns the configured Strapi Base URL.
+	 * Returns the currently active Strapi Base URL.
 	 */
 	getUrl() {
-		return getEnv().STRAPI_URL;
+		return getActiveConnection().strapiUrl;
 	},
 
 	/**
 	 * Performs a GET request to Strapi.
 	 * @param {string} path
-	 * @param {RequestInit & { timeoutMs?: number }} [options]
+	 * @param {RequestInit & { timeoutMs?: number, connection?: { strapiUrl: string, apiToken?: string } }} [options]
 	 */
 	async get(path, options = {}) {
 		return strapiFetch(path, { ...options, method: 'GET' });
@@ -149,7 +220,7 @@ export const strapiClient = {
 	 * Performs a POST request to Strapi.
 	 * @param {string} path
 	 * @param {any} data
-	 * @param {RequestInit & { timeoutMs?: number }} [options]
+	 * @param {RequestInit & { timeoutMs?: number, connection?: { strapiUrl: string, apiToken?: string } }} [options]
 	 */
 	async post(path, data, options = {}) {
 		const headers = new Headers(options.headers || {});
@@ -168,7 +239,7 @@ export const strapiClient = {
 	 * Performs a PUT request to Strapi.
 	 * @param {string} path
 	 * @param {any} data
-	 * @param {RequestInit & { timeoutMs?: number }} [options]
+	 * @param {RequestInit & { timeoutMs?: number, connection?: { strapiUrl: string, apiToken?: string } }} [options]
 	 */
 	async put(path, data, options = {}) {
 		const headers = new Headers(options.headers || {});
@@ -187,7 +258,7 @@ export const strapiClient = {
 	 * Performs a PATCH request to Strapi.
 	 * @param {string} path
 	 * @param {any} data
-	 * @param {RequestInit & { timeoutMs?: number }} [options]
+	 * @param {RequestInit & { timeoutMs?: number, connection?: { strapiUrl: string, apiToken?: string } }} [options]
 	 */
 	async patch(path, data, options = {}) {
 		const headers = new Headers(options.headers || {});
@@ -205,7 +276,7 @@ export const strapiClient = {
 	/**
 	 * Performs a DELETE request to Strapi.
 	 * @param {string} path
-	 * @param {RequestInit & { timeoutMs?: number }} [options]
+	 * @param {RequestInit & { timeoutMs?: number, connection?: { strapiUrl: string, apiToken?: string } }} [options]
 	 */
 	async delete(path, options = {}) {
 		return strapiFetch(path, { ...options, method: 'DELETE' });
@@ -218,8 +289,9 @@ export const strapiClient = {
 	 * @param {string} info.filename
 	 * @param {string} info.mimeType
 	 * @param {string} [info.altText]
+	 * @param {{ strapiUrl?: string, apiToken?: string }} [connection]
 	 */
-	async upload(buffer, info) {
-		return uploadMedia(buffer, info);
+	async upload(buffer, info, connection) {
+		return uploadMedia(buffer, info, connection);
 	}
 };

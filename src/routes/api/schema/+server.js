@@ -2,12 +2,12 @@ import crypto from 'node:crypto';
 import { json } from '@sveltejs/kit';
 import { resolveAvailableSchemas, getContentTypeSchema } from '$lib/server/schema/resolve.js';
 import { registerUploadedSchema } from '$lib/server/schema/loader-upload.js';
-import { getEnv } from '$lib/server/env.js';
+import { getActiveConnection } from '$lib/server/strapi/connection.js';
 
 export async function GET({ url }) {
-	const env = getEnv();
 	const forceRefresh = url.searchParams.get('refresh') === 'true';
 	const targetUid = url.searchParams.get('uid');
+	const active = getActiveConnection();
 
 	try {
 		const resolved = await resolveAvailableSchemas({ forceRefresh });
@@ -26,9 +26,10 @@ export async function GET({ url }) {
 
 		return json({
 			source: resolved.source,
-			strapiUrl: env.STRAPI_URL,
+			strapiUrl: resolved.normalizedUrl || active.strapiUrl,
 			strapiVersion: resolved.strapiVersion || '5',
-			contentTypesCount: resolved.contentTypesCount || Object.keys(resolved.contentTypes || {}).length,
+			contentTypesCount:
+				resolved.contentTypesCount || Object.keys(resolved.contentTypes || {}).length,
 			componentsCount: resolved.componentsCount || 0,
 			contentTypes: resolved.contentTypes,
 			selectedSchema,
@@ -41,7 +42,7 @@ export async function GET({ url }) {
 				error: {
 					code: 'SCHEMA_DISCOVERY_FAILED',
 					message,
-					strapiUrl: env.STRAPI_URL
+					strapiUrl: active.strapiUrl
 				}
 			},
 			{ status: 502 }

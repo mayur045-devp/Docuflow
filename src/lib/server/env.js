@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { z } from 'zod';
 import { redact } from './security/redact.js';
+import { normalizeStrapiUrl } from './strapi/connection.js';
 
 // Auto-load .env if not loaded (Node 20+ has process.loadEnvFile)
 try {
@@ -16,13 +17,14 @@ const envSchema = z
 		STRAPI_URL: z
 			.string({
 				required_error:
-					'STRAPI_URL is not configured. Please configure the pre-production Strapi URL (https://strapi-preprod.12thwonder.com).'
+					'STRAPI_URL is not configured. Please configure your Strapi CMS URL in .env.'
 			})
-			.url('STRAPI_URL must be a valid URL (e.g. https://strapi-preprod.12thwonder.com)')
+			.url('STRAPI_URL must be a valid URL')
 			.refine(
 				(val) => !val.includes('localhost') && !val.includes('127.0.0.1'),
-				'Localhost Strapi is strictly disabled. DocuFlow must connect to the pre-production Strapi CMS (https://strapi-preprod.12thwonder.com).'
-			),
+				'Localhost Strapi is strictly disabled. DocuFlow must connect to an external/pre-production Strapi CMS.'
+			)
+			.transform((val) => normalizeStrapiUrl(val)),
 		STRAPI_API_TOKEN: z
 			.string({
 				required_error:

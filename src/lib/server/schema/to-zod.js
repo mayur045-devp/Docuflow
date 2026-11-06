@@ -89,11 +89,16 @@ export function attributeToZod(attr) {
 		}
 
 		case 'relation': {
-			// Can be string lookup text, number id, documentId string, or null
-			schema = z.union([
+			// Can be string lookup text, number id, documentId string, null, or array of these for multi-relations
+			const relationItem = z.union([
 				z.string(),
 				z.number(),
-				z.record(z.string(), z.any()),
+				z.record(z.string(), z.any())
+			]);
+			schema = z.union([
+				relationItem,
+				z.array(relationItem),
+				z.array(z.any()),
 				z.null(),
 				z.undefined()
 			]);
@@ -107,9 +112,22 @@ export function attributeToZod(attr) {
 				const compZod = contentTypeToZod(attr.schema);
 				if (attr.repeatable) {
 					let arr = z.array(compZod);
-					if (attr.min) arr = arr.min(attr.min);
-					if (attr.max) arr = arr.max(attr.max);
-					schema = arr;
+					if (attr.min) {
+						if (!attr.required) {
+							// For optional repeatable components, an empty array (0 items) represents
+							// an intentionally absent component and is valid.
+							let populatedArr = z.array(compZod).min(attr.min);
+							if (attr.max) populatedArr = populatedArr.max(attr.max);
+							schema = z.union([z.array(compZod).length(0), populatedArr]);
+						} else {
+							arr = arr.min(attr.min);
+							if (attr.max) arr = arr.max(attr.max);
+							schema = arr;
+						}
+					} else {
+						if (attr.max) arr = arr.max(attr.max);
+						schema = arr;
+					}
 				} else {
 					schema = compZod;
 				}

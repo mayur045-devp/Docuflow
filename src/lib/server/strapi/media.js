@@ -1,5 +1,9 @@
 import crypto from 'node:crypto';
-import { getEnv } from '../env.js';
+import {
+	getActiveConnection,
+	buildStrapiEndpointUrl,
+	normalizeStrapiUrl
+} from './connection.js';
 
 /**
  * Uploads an image buffer to Strapi /api/upload.
@@ -9,10 +13,13 @@ import { getEnv } from '../env.js';
  * @param {string} info.filename
  * @param {string} info.mimeType
  * @param {string} [info.altText]
+ * @param {{ strapiUrl?: string, apiToken?: string }} [connection]
  * @returns {Promise<{ id: number, documentId?: string, url: string, name: string }>}
  */
-export async function uploadMedia(buffer, info) {
-	const { STRAPI_URL, STRAPI_API_TOKEN } = getEnv();
+export async function uploadMedia(buffer, info, connection) {
+	const conn = connection || getActiveConnection();
+	const strapiUrl = normalizeStrapiUrl(conn.strapiUrl);
+	const strapiToken = conn.apiToken || '';
 
 	const formData = new FormData();
 	const blob = new Blob([new Uint8Array(buffer)], { type: info.mimeType });
@@ -26,11 +33,12 @@ export async function uploadMedia(buffer, info) {
 	formData.append('fileInfo', JSON.stringify(fileInfo));
 
 	const headers = new Headers();
-	if (STRAPI_API_TOKEN) {
-		headers.set('Authorization', `Bearer ${STRAPI_API_TOKEN}`);
+	if (strapiToken) {
+		headers.set('Authorization', `Bearer ${strapiToken}`);
 	}
 
-	const res = await fetch(`${STRAPI_URL}/api/upload`, {
+	const uploadUrl = buildStrapiEndpointUrl(strapiUrl, '/api/upload');
+	const res = await fetch(uploadUrl, {
 		method: 'POST',
 		headers,
 		body: formData
@@ -70,14 +78,15 @@ export class JobMediaManager {
 	 * @param {string} info.filename
 	 * @param {string} info.mimeType
 	 * @param {string} [info.altText]
+	 * @param {{ strapiUrl?: string, apiToken?: string }} [connection]
 	 */
-	async uploadOrGet(buffer, info) {
+	async uploadOrGet(buffer, info, connection) {
 		const hash = crypto.createHash('sha256').update(buffer).digest('hex');
 		if (this.uploadedByHash.has(hash)) {
 			return this.uploadedByHash.get(hash);
 		}
 
-		const uploaded = await uploadMedia(buffer, info);
+		const uploaded = await uploadMedia(buffer, info, connection);
 		this.uploadedByHash.set(hash, uploaded);
 		return uploaded;
 	}

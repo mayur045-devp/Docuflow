@@ -1,9 +1,12 @@
 import { resolveAvailableSchemas } from '$lib/server/schema/resolve.js';
 import { detectStrapiVersion } from '$lib/server/strapi/detect-version.js';
 import { getEnv } from '$lib/server/env.js';
+import { getActiveConnection } from '$lib/server/strapi/connection.js';
 
 export async function load() {
 	const env = getEnv();
+	const activeConn = getActiveConnection();
+
 	let schemas = { source: 'live_strapi', contentTypes: {} };
 	try {
 		schemas = await resolveAvailableSchemas();
@@ -15,10 +18,10 @@ export async function load() {
 
 	return {
 		config: {
-			strapiUrl: env.STRAPI_URL,
-			strapiVersionConfigured: env.STRAPI_VERSION,
+			strapiUrl: activeConn.strapiUrl,
+			strapiVersionConfigured: activeConn.version,
 			detectedVersion: version,
-			hasToken: Boolean(env.STRAPI_API_TOKEN),
+			hasToken: Boolean(activeConn.apiToken),
 			aiProvider: env.AI_PROVIDER,
 			geminiModel: env.GEMINI_MODEL
 		},

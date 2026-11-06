@@ -1,17 +1,38 @@
 import { strapiFetch } from './client.js';
 import { normalizeContentType } from '../schema/normalize.js';
-import { getEnv } from '../env.js';
+import {
+	getActiveConnection,
+	getConnectionKey,
+	onConnectionChange,
+	normalizeStrapiUrl
+} from './connection.js';
 
-let cachedSchemaResult = null;
-let cacheExpiresAt = 0;
+// Cache map keyed by connection identity (normalizedUrl + token hash)
+const schemaCaches = new Map();
+
+// Invalidate all caches whenever the active connection is changed or reset
+onConnectionChange(() => {
+	schemaCaches.clear();
+	console.log('[Strapi Schema] All schema caches cleared due to connection change.');
+});
 
 /**
- * Fetches and dynamically discovers all content types and components from the live Strapi CMS.
+ * Clears all cached Strapi schemas across all connections.
+ */
+export function clearSchemaCaches() {
+	schemaCaches.clear();
+}
+
+/**
+ * Fetches and dynamically discovers all content types and components from the target Strapi CMS.
  *
  * @param {object} [options]
  * @param {boolean} [options.forceRefresh=false]
+ * @param {{ strapiUrl: string, apiToken?: string }} [options.connection]
  * @returns {Promise<{
  *   source: 'live_strapi',
+ *   baseUrl: string,
+ *   normalizedUrl: string,
  *   contentTypes: Record<string, any>,
  *   components: Record<string, any>,
  *   strapiVersion: string,
@@ -19,15 +40,27 @@ let cacheExpiresAt = 0;
  *   componentsCount: number
  * }>}
  */
-export async function getLiveStrapiSchemas({ forceRefresh = false } = {}) {
+export async function getLiveStrapiSchemas({ forceRefresh = false, connection = null } = {}) {
+	const conn = connection || getActiveConnection();
+	const normalizedUrl = normalizeStrapiUrl(conn.strapiUrl);
+	const cacheKey = getConnectionKey(normalizedUrl, conn.apiToken);
+
 	const now = Date.now();
-	if (!forceRefresh && cachedSchemaResult && now < cacheExpiresAt) {
-		return cachedSchemaResult;
+	const cached = schemaCaches.get(cacheKey);
+
+	if (!forceRefresh && cached && now < cached.expiresAt) {
+		return cached.data;
 	}
 
-	const env = getEnv();
-	console.log(`[STRAPI] URL: ${env.STRAPI_URL}`);
-	console.log('[STRAPI] Fetching schemas from live Strapi...');
+	let host = 'unknown';
+	try {
+		host = new URL(normalizedUrl).host;
+	} catch {
+		// ignore
+	}
+
+	console.log(`[STRAPI] URL: ${normalizedUrl}`);
+	console.log(`[STRAPI] Fetching live schemas from Host: ${host}...`);
 
 	let ctData = null;
 	let compData = null;
@@ -35,8 +68,8 @@ export async function getLiveStrapiSchemas({ forceRefresh = false } = {}) {
 	// Query Strapi Content-Type Builder endpoints
 	try {
 		const [ctRes, compRes] = await Promise.all([
-			strapiFetch('/api/content-type-builder/content-types'),
-			strapiFetch('/api/content-type-builder/components')
+			strapiFetch('/api/content-type-builder/content-types', { connection: conn }),
+			strapiFetch('/api/content-type-builder/components', { connection: conn })
 		]);
 		ctData = ctRes;
 		compData = compRes;
@@ -44,8 +77,8 @@ export async function getLiveStrapiSchemas({ forceRefresh = false } = {}) {
 		// Fallback without /api prefix if Strapi is configured with custom routing
 		try {
 			const [ctRes, compRes] = await Promise.all([
-				strapiFetch('/content-type-builder/content-types'),
-				strapiFetch('/content-type-builder/components')
+				strapiFetch('/content-type-builder/content-types', { connection: conn }),
+				strapiFetch('/content-type-builder/components', { connection: conn })
 			]);
 			ctData = ctRes;
 			compData = compRes;
@@ -82,22 +115,28 @@ export async function getLiveStrapiSchemas({ forceRefresh = false } = {}) {
 	const contentTypesCount = Object.keys(contentTypes).length;
 	const componentsCount = Object.keys(componentRegistry).length;
 
-	console.log('[STRAPI] Connected successfully');
+	console.log(`[STRAPI] Schema discovery successful for Host: ${host}`);
 	console.log(`[STRAPI] Content Types discovered: ${contentTypesCount}`);
 	console.log(`[STRAPI] Components discovered: ${componentsCount}`);
 
-	cachedSchemaResult = {
-		source: 'live_strapi',
+	const resultData = {
+		source: /** @type {const} */ ('live_strapi'),
+		baseUrl: conn.strapiUrl,
+		normalizedUrl,
 		contentTypes,
 		components: componentRegistry,
 		strapiVersion: '5',
 		contentTypesCount,
 		componentsCount
 	};
-	// Cache for 5 minutes if not force-refreshed
-	cacheExpiresAt = now + 5 * 60 * 1000;
 
-	return cachedSchemaResult;
+	// Cache for 5 minutes if not forced
+	schemaCaches.set(cacheKey, {
+		data: resultData,
+		expiresAt: now + 5 * 60 * 1000
+	});
+
+	return resultData;
 }
 
 /**
@@ -106,9 +145,13 @@ export async function getLiveStrapiSchemas({ forceRefresh = false } = {}) {
  * @param {string} uidOrName
  * @param {object} [options]
  * @param {boolean} [options.forceRefresh=false]
+ * @param {{ strapiUrl: string, apiToken?: string }} [options.connection]
  */
-export async function getLiveContentTypeSchema(uidOrName, { forceRefresh = false } = {}) {
-	const { contentTypes } = await getLiveStrapiSchemas({ forceRefresh });
+export async function getLiveContentTypeSchema(
+	uidOrName,
+	{ forceRefresh = false, connection = null } = {}
+) {
+	const { contentTypes } = await getLiveStrapiSchemas({ forceRefresh, connection });
 
 	let found = contentTypes[uidOrName] || null;
 
@@ -123,7 +166,10 @@ export async function getLiveContentTypeSchema(uidOrName, { forceRefresh = false
 
 	if (found) {
 		const typeLabel = found.kind === 'singleType' ? 'Single Type' : 'Collection Type';
-		const apiId = found.kind === 'singleType' ? found.singularName : (found.pluralName || found.singularName);
+		const apiId =
+			found.kind === 'singleType'
+				? found.singularName
+				: found.pluralName || found.singularName;
 		console.log(`[STRAPI] Selected Content Type: ${found.displayName || uidOrName}`);
 		console.log(`[STRAPI] Type: ${typeLabel}`);
 		console.log(`[STRAPI] API ID: ${apiId}`);
@@ -133,4 +179,3 @@ export async function getLiveContentTypeSchema(uidOrName, { forceRefresh = false
 
 	return null;
 }
-

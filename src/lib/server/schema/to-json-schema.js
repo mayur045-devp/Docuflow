@@ -186,20 +186,23 @@ export function contentTypeToJsonSchema(contentTypeDef, wrapEnvelope = true) {
 			data: dataSchema,
 			fieldNotes: {
 				type: 'ARRAY',
-				description: 'Confidence scores and source references for mapped fields',
+				description: 'Evaluation notes for every schema field, indicating whether it was found or missing in the document',
 				items: {
 					type: 'OBJECT',
 					properties: {
-						path: { type: 'STRING', description: 'Field path like "title" or "services.0.title"' },
-						confidence: { type: 'NUMBER', description: 'Confidence between 0.0 and 1.0' },
+						field: { type: 'STRING', description: 'Field name or path like "title" or "author"' },
+						path: { type: 'STRING', description: 'Field path alias' },
+						status: { type: 'STRING', enum: ['found', 'missing'], description: '"found" if present in document, "missing" if absent' },
+						value: { type: 'STRING', description: 'Optional value preview or "null"' },
+						confidence: { type: 'NUMBER', description: 'Confidence between 0.0 and 1.0 (0.0 for missing)' },
 						sourceBlockIds: {
 							type: 'ARRAY',
 							items: { type: 'STRING' },
-							description: 'Source block IDs from document like ["b1", "b2"]'
+							description: 'Source block IDs from document like ["b1", "b2"], or empty array'
 						},
-						note: { type: 'STRING', description: 'Optional explanation or nuance' }
+						note: { type: 'STRING', description: 'Optional explanation or status note' }
 					},
-					required: ['path', 'confidence', 'sourceBlockIds']
+					required: ['field', 'status']
 				}
 			},
 			warnings: {

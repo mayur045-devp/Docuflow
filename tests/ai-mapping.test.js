@@ -172,11 +172,11 @@ describe('AI and Mapping Engine', () => {
 
 		expect(payload.title).toBe('Minimal Document Article');
 		expect(payload.slug).toBe('minimal-document-article');
-		// Missing optional fields are not populated with fake data
-		expect(payload.body).toBeUndefined();
-		expect(payload.summary).toBeUndefined();
-		expect(payload.authorName).toBeUndefined();
-		expect(payload.featuredImage).toBeUndefined();
+		// Missing optional fields are populated with correct typed empty clearing value (null / []), not fake data
+		expect(payload.body).toBeNull();
+		expect(payload.summary).toBeNull();
+		expect(payload.authorName).toBeNull();
+		expect(payload.featuredImage).toBeNull();
 		// No warnings for optional missing fields
 		expect(warnings).toEqual([]);
 	});

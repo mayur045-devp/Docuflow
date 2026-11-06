@@ -5,7 +5,12 @@
 	let schemaSource = $state(data.schemaSource);
 	let contentTypes = $state(data.contentTypes || []);
 
+	// Dynamic Strapi connection input
+	let inputStrapiUrl = $state(data.config?.strapiUrl || '');
+	let inputApiToken = $state('');
+
 	let testingConnection = $state(false);
+	let savingConnection = $state(false);
 	let testResult = $state(null);
 
 	let manualSchemaText = $state('');
@@ -13,23 +18,41 @@
 	let schemaRegisterStatus = $state('');
 	let schemaRegisterError = $state('');
 
-	async function testConnection() {
-		testingConnection = true;
+	async function testConnection(shouldSave = false) {
+		if (shouldSave) {
+			savingConnection = true;
+		} else {
+			testingConnection = true;
+		}
 		testResult = null;
 
 		try {
+			const payload = {
+				strapiUrl: inputStrapiUrl.trim(),
+				apiToken: inputApiToken.trim() || undefined,
+				save: shouldSave
+			};
+
 			const res = await fetch('/api/strapi/test', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({})
+				body: JSON.stringify(payload)
 			});
 
 			const json = await res.json();
 			testResult = json;
+
 			if (json.version) {
 				config.detectedVersion = json.version;
 			}
-			if (json.reachable) {
+
+			if (json.success && shouldSave) {
+				config.strapiUrl = json.normalizedUrl;
+				inputStrapiUrl = json.normalizedUrl;
+				config.hasToken = Boolean(inputApiToken.trim() || config.hasToken);
+				inputApiToken = ''; // Clear secret from form input
+
+				// Refresh live schema list from newly active Strapi environment
 				const refreshRes = await fetch('/api/schema?refresh=true');
 				if (refreshRes.ok) {
 					const refreshJson = await refreshRes.json();
@@ -39,11 +62,17 @@
 			}
 		} catch (err) {
 			testResult = {
-				reachable: false,
-				error: err instanceof Error ? err.message : String(err)
+				success: false,
+				status: null,
+				apiReachable: false,
+				authenticated: false,
+				schemaDiscoveryAvailable: false,
+				errorCode: 'CLIENT_REQUEST_ERROR',
+				message: err instanceof Error ? err.message : String(err)
 			};
 		} finally {
 			testingConnection = false;
+			savingConnection = false;
 		}
 	}
 
@@ -85,43 +114,25 @@
 	<div>
 		<h1 class="text-2xl font-bold tracking-tight text-white">System Settings &amp; Configuration</h1>
 		<p class="mt-1 text-xs text-slate-400">
-			Manage Pre-Production Strapi CMS connection, AI provider settings, and live content type schema status.
+			Manage external Strapi CMS connection, AI provider settings, and live content type schema status.
 		</p>
 	</div>
 
 	<!-- 1. Connection Card -->
-	<div class="space-y-5 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+	<div class="space-y-6 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
 		<div class="flex items-center justify-between border-b border-slate-800 pb-4">
 			<div>
 				<h3 class="text-sm font-bold text-white">Strapi CMS Connection</h3>
-				<p class="mt-0.5 text-xs text-slate-400">Authenticated server-to-server REST communication with Pre-Production Strapi.</p>
+				<p class="mt-0.5 text-xs text-slate-400">
+					Supports arbitrary valid Strapi base URLs. The selected Strapi instance is the single source of truth.
+				</p>
 			</div>
-			<button
-				type="button"
-				disabled={testingConnection}
-				class="flex cursor-pointer items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-indigo-500 disabled:opacity-50"
-				onclick={testConnection}
-			>
-				{#if testingConnection}
-					<svg class="h-3.5 w-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-						></circle>
-						<path
-							class="opacity-75"
-							fill="currentColor"
-							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-						></path>
-					</svg>
-					<span>Testing...</span>
-				{:else}
-					<span>Test Strapi Connection</span>
-				{/if}
-			</button>
 		</div>
 
+		<!-- Active Connection Info -->
 		<div class="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3">
 			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">Strapi URL (Pre-Production)</span>
+				<span class="mb-1 block text-slate-500">Active Strapi Base URL</span>
 				<span class="font-mono font-medium text-white break-all">{config.strapiUrl}</span>
 			</div>
 			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
@@ -129,41 +140,110 @@
 				<span class="font-mono font-bold text-indigo-400">Strapi {config.detectedVersion}.x</span>
 			</div>
 			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">API Token</span>
+				<span class="mb-1 block text-slate-500">API Token Status</span>
 				<span class="font-mono {config.hasToken ? 'text-emerald-400' : 'text-rose-400'} font-bold">
 					{config.hasToken ? 'Configured (Server-Side Only)' : 'Missing'}
 				</span>
 			</div>
 		</div>
 
+		<!-- Switch / Test Dynamic Connection Form -->
+		<div class="space-y-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+			<h4 class="text-xs font-bold text-white uppercase tracking-wider">Connect to a Strapi Environment</h4>
+			<p class="text-xs text-slate-400">
+				Enter any valid Strapi base URL and optional API token. Trailing slashes are normalized automatically.
+			</p>
+
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div>
+					<label for="strapi-url-input" class="mb-1 block text-xs font-semibold text-slate-300">
+						Strapi Base URL
+					</label>
+					<input
+						id="strapi-url-input"
+						type="url"
+						bind:value={inputStrapiUrl}
+						placeholder="https://strapi-preprod.testlifecycle.com"
+						class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+					/>
+				</div>
+
+				<div>
+					<label for="strapi-token-input" class="mb-1 block text-xs font-semibold text-slate-300">
+						API Token (Leave blank to use currently configured token)
+					</label>
+					<input
+						id="strapi-token-input"
+						type="password"
+						bind:value={inputApiToken}
+						placeholder="Enter token for this environment"
+						class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+					/>
+				</div>
+			</div>
+
+			<div class="flex flex-wrap items-center gap-3 pt-2">
+				<button
+					type="button"
+					disabled={testingConnection || savingConnection || !inputStrapiUrl.trim()}
+					class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-slate-700 disabled:opacity-40"
+					onclick={() => testConnection(false)}
+				>
+					{testingConnection ? 'Testing...' : 'Test Connection'}
+				</button>
+
+				<button
+					type="button"
+					disabled={testingConnection || savingConnection || !inputStrapiUrl.trim()}
+					class="cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-indigo-500 disabled:opacity-40"
+					onclick={() => testConnection(true)}
+				>
+					{savingConnection ? 'Saving & Connecting...' : 'Save & Switch Active Connection'}
+				</button>
+			</div>
+		</div>
+
+		<!-- Diagnostic Test Result (Requirement 12) -->
 		{#if testResult}
 			<div
-				class="rounded-xl border p-4 text-xs {testResult.reachable
+				class="rounded-xl border p-4 text-xs {testResult.success
 					? 'border-emerald-800 bg-emerald-950/30 text-emerald-300'
 					: 'border-rose-800 bg-rose-950/30 text-rose-300'} space-y-2"
 			>
-				<div class="flex items-center gap-2 font-bold text-sm">
-					<span>{testResult.reachable ? '✓ Strapi Instance Reachable & Authenticated' : '✗ Connection Failed'}</span>
+				<div class="flex items-center justify-between font-bold text-sm">
+					<span>{testResult.success ? '✓ Strapi Connection Successful' : '✗ Connection Failed'}</span>
+					{#if testResult.status}
+						<span class="rounded px-2 py-0.5 font-mono text-[11px] {testResult.success ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300'}">
+							HTTP {testResult.status}
+						</span>
+					{/if}
 				</div>
-				{#if testResult.error}
-					<p class="font-mono text-xs text-rose-300">{testResult.error}</p>
-				{/if}
-				{#if testResult.possibleCauses}
-					<div class="pt-1">
-						<span class="font-semibold text-rose-300">Possible causes:</span>
-						<ul class="list-inside list-disc space-y-0.5 text-[11px] text-rose-400">
-							{#each testResult.possibleCauses as cause}
-								<li>{cause}</li>
-							{/each}
-						</ul>
+
+				<p class="text-xs {testResult.success ? 'text-emerald-200' : 'text-rose-200'}">
+					{testResult.message}
+				</p>
+
+				{#if testResult.errorCode}
+					<div class="font-mono text-[11px] text-slate-400">
+						Error Code: <strong class="text-rose-400">{testResult.errorCode}</strong>
 					</div>
 				{/if}
-				{#if testResult.reachable}
-					<div class="grid grid-cols-2 gap-2 pt-1 text-slate-300 sm:grid-cols-4 font-mono text-[11px]">
+
+				{#if testResult.normalizedUrl}
+					<div class="font-mono text-[11px] text-slate-400">
+						Normalized URL: <strong class="text-slate-200">{testResult.normalizedUrl}</strong>
+						{#if testResult.durationMs}
+							<span class="text-slate-500">({testResult.durationMs}ms)</span>
+						{/if}
+					</div>
+				{/if}
+
+				{#if testResult.success}
+					<div class="grid grid-cols-2 gap-2 pt-2 text-slate-300 sm:grid-cols-4 font-mono text-[11px]">
 						<div>Status: <strong class="text-emerald-400">● Connected</strong></div>
-						<div>Version: <strong class="text-indigo-400">Strapi {testResult.version}.x</strong></div>
-						<div>Content Types: <strong class="text-white">{testResult.contentTypesCount} discovered</strong></div>
-						<div>Components: <strong class="text-white">{testResult.componentsCount} discovered</strong></div>
+						<div>Version: <strong class="text-indigo-400">Strapi {testResult.version || '5'}.x</strong></div>
+						<div>Content Types: <strong class="text-white">{testResult.contentTypesCount || 0} discovered</strong></div>
+						<div>Components: <strong class="text-white">{testResult.componentsCount || 0} discovered</strong></div>
 					</div>
 				{/if}
 			</div>

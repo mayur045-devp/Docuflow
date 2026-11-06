@@ -59,16 +59,16 @@
 			const res = await fetch('/api/strapi/test', { method: 'POST' });
 			const json = await res.json();
 			connectionStatus = json;
-			if (json.reachable) {
-				strapiUrl = json.url;
-				strapiVersion = json.version;
+			if (json.success) {
+				strapiUrl = json.normalizedUrl || json.baseUrl;
+				strapiVersion = json.version || '5';
 				componentsCount = json.componentsCount || componentsCount;
 			} else {
-				errorMessage = json.error || 'Failed to connect to pre-production Strapi.';
+				errorMessage = json.message || 'Strapi connection test failed.';
 			}
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Strapi connection test failed.';
-			connectionStatus = { reachable: false, error: errorMessage };
+			connectionStatus = { success: false, message: errorMessage };
 		} finally {
 			testingConnection = false;
 		}
@@ -92,11 +92,12 @@
 				componentsCount = json.componentsCount || componentsCount;
 
 				connectionStatus = {
-					reachable: true,
-					url: strapiUrl,
+					success: true,
+					normalizedUrl: strapiUrl,
 					version: strapiVersion,
 					contentTypesCount: contentTypes.length,
-					componentsCount
+					componentsCount,
+					message: 'Strapi connection successful'
 				};
 
 				if (
@@ -110,11 +111,11 @@
 				throw new Error(errJson.error?.message || 'Failed to retrieve Strapi schemas');
 			}
 		} catch (err) {
-			errorMessage = err instanceof Error ? err.message : 'Could not load pre-production Strapi schema.';
+			errorMessage = err instanceof Error ? err.message : 'Could not load Strapi schema.';
 			connectionStatus = {
-				reachable: false,
-				url: strapiUrl,
-				error: errorMessage
+				success: false,
+				normalizedUrl: strapiUrl,
+				message: errorMessage
 			};
 		} finally {
 			loadingSchemas = false;
@@ -233,7 +234,7 @@
 			DOCX &rarr; Strapi CMS Automation
 		</h1>
 		<p class="mx-auto max-w-xl text-sm text-slate-400">
-			Extract Word documents, dynamically map content to live Pre-Production Strapi schemas, review field-by-field, and publish directly.
+			Extract Word documents, dynamically map content to live Strapi schemas, review field-by-field, and publish directly.
 		</p>
 	</div>
 
@@ -242,7 +243,7 @@
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div class="flex items-start gap-3">
 				<div class="mt-0.5">
-					{#if connectionStatus?.reachable}
+					{#if connectionStatus?.success}
 						<span class="relative flex h-3 w-3">
 							<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
 							<span class="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
@@ -254,14 +255,14 @@
 				<div class="space-y-1">
 					<div class="flex items-center gap-2">
 						<span class="text-xs font-bold text-white uppercase tracking-wider">Strapi Connection</span>
-						<span class="rounded px-2 py-0.5 font-mono text-[10px] font-bold {connectionStatus?.reachable ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-900' : 'bg-rose-950/80 text-rose-400 border border-rose-900'}">
-							{connectionStatus?.reachable ? '● Connected' : 'Disconnected'}
+						<span class="rounded px-2 py-0.5 font-mono text-[10px] font-bold {connectionStatus?.success ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-900' : 'bg-rose-950/80 text-rose-400 border border-rose-900'}">
+							{connectionStatus?.success ? '● Connected' : 'Disconnected'}
 						</span>
 					</div>
 					<div class="font-mono text-xs text-slate-300">
-						{strapiUrl || 'https://strapi-preprod.12thwonder.com'}
+						{strapiUrl || 'Strapi URL not set'}
 					</div>
-					{#if connectionStatus?.reachable}
+					{#if connectionStatus?.success}
 						<div class="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-400">
 							<span>Strapi Version: <strong class="text-indigo-400">{strapiVersion}.x</strong></span>
 							<span>&bull;</span>
@@ -296,14 +297,17 @@
 			</div>
 		</div>
 
-		{#if connectionStatus?.possibleCauses && !connectionStatus?.reachable}
-			<div class="mt-4 rounded-xl border border-rose-900/50 bg-rose-950/30 p-3 text-xs text-rose-300">
-				<div class="font-bold">Possible causes:</div>
-				<ul class="mt-1 list-inside list-disc space-y-0.5 text-rose-400">
-					{#each connectionStatus.possibleCauses as cause}
-						<li>{cause}</li>
-					{/each}
-				</ul>
+		{#if connectionStatus && !connectionStatus.success}
+			<div class="mt-4 rounded-xl border border-rose-900/50 bg-rose-950/30 p-3 text-xs text-rose-300 space-y-1">
+				<div class="font-bold">{connectionStatus.message || 'Connection failed'}</div>
+				{#if connectionStatus.errorCode}
+					<div class="font-mono text-[11px] text-rose-400">
+						Error Code: <strong>{connectionStatus.errorCode}</strong>
+					</div>
+				{/if}
+				<p class="text-[11px] text-slate-400 pt-1">
+					You can change the Strapi URL or API Token in <a href="/settings" class="text-indigo-400 underline font-semibold">Settings</a>.
+				</p>
 			</div>
 		{/if}
 	</div>
@@ -353,7 +357,7 @@
 					<div
 						class="rounded-xl border border-amber-800 bg-amber-950/40 p-4 text-xs text-amber-300"
 					>
-						Unable to discover content types from Strapi. Please verify the Strapi pre-production URL and API token in <a
+						Unable to discover content types from Strapi. Please verify the Strapi URL and API token in <a
 							href="/settings"
 							class="font-bold underline">Settings</a
 						>.

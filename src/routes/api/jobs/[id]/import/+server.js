@@ -13,7 +13,7 @@ import {
 import { getContentTypeSchema } from '$lib/server/schema/resolve.js';
 import { validateContentData } from '$lib/server/schema/to-zod.js';
 import { getStrapiAdapter } from '$lib/server/strapi/adapter.js';
-import { buildStrapiPayload } from '$lib/server/mapping/build-payload.js';
+import { buildStrapiPayload, verifyImportedEntry } from '$lib/server/mapping/build-payload.js';
 import { ensureUniqueSlug } from '$lib/server/mapping/slug.js';
 import { JobMediaManager } from '$lib/server/strapi/media.js';
 
@@ -144,11 +144,16 @@ export async function POST({ params, request, getClientAddress }) {
 		}
 
 		if (missingRequired.length > 0) {
+			const fieldsList = missingRequired.map((f) => `"${f}"`).join(', ');
+			const message =
+				missingRequired.length === 1
+					? `Import cannot complete because the Strapi field "${missingRequired[0]}" is required, but the uploaded document does not contain a ${missingRequired[0]} value.`
+					: `Import cannot complete because the Strapi fields ${fieldsList} are required, but the uploaded document does not contain values for them.`;
 			return json(
 				{
 					error: {
 						code: 'MISSING_REQUIRED_FIELDS',
-						message: `Required field(s) missing: ${missingRequired.join(', ')}. Please provide a value before approving and importing.`,
+						message,
 						details: missingRequired.map((f) => ({
 							path: f,
 							message: `Field "${f}" is required by Strapi.`
@@ -359,7 +364,7 @@ export async function POST({ params, request, getClientAddress }) {
 	await resolveAndUploadMedia(sourceData, schema.attributes);
 
 	// Build final payload formatted by version adapter
-	const isUpdating = Boolean(existingEntry && onDuplicate === 'update');
+	const isUpdating = isSingleType || Boolean(existingEntry && onDuplicate === 'update');
 	const { payload, warnings } = buildStrapiPayload(sourceData, schema, adapter, {
 		isUpdate: isUpdating
 	});
@@ -399,6 +404,22 @@ export async function POST({ params, request, getClientAddress }) {
 		const adminUrl = adapter.adminLink(resultEntry, schema.singularName, schema.kind, schema.uid);
 		console.log(`[STRAPI] Import successful: entryId=${resultEntry.id}, documentId=${resultEntry.documentId || 'n/a'}`);
 
+		// Post-import verification: verify document values mapped and missing fields cleared
+		const verification = verifyImportedEntry({
+			resultEntry,
+			schema,
+			sourceData,
+			isUpdating,
+			existingEntry
+		});
+
+		if (!verification.verified) {
+			console.warn('[STRAPI] Post-import verification discrepancies:', verification.discrepancies);
+			warnings.push(...verification.discrepancies);
+		} else {
+			console.log(`[STRAPI] Post-import verification passed (${verification.checksCount} checks passed).`);
+		}
+
 		const finalResult = {
 			success: true,
 			entryId: resultEntry.id,
@@ -406,6 +427,10 @@ export async function POST({ params, request, getClientAddress }) {
 			adminUrl,
 			draft: !publish,
 			warnings,
+			verification: {
+				verified: verification.verified,
+				discrepancies: verification.discrepancies
+			},
 			timestamp: new Date().toISOString()
 		};
 

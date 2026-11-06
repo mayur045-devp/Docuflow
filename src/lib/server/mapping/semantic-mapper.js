@@ -1,5 +1,6 @@
 import { generateSlug } from './slug.js';
 import { normalizeKey } from '../document/intermediate.js';
+import { getEmptyValueForField, tryParseJson } from './build-payload.js';
 
 /**
  * Common semantic synonyms dictionary for document-to-schema field mapping.
@@ -196,6 +197,17 @@ function scoreMatch(candidateRawKey, targetAttrName, sectionHeading = '', compon
 
 	if (!normCand || !normTarget) return 0;
 
+	// When searching for fields of a specific component, avoid stealing keys from unrelated sections or global scope
+	if (componentName) {
+		const normComp = normalizeKey(componentName);
+		const normSec = normalizeKey(sectionHeading);
+		const hasSectionAffinity = normSec && (normSec === normComp || normSec.includes(normComp) || normComp.includes(normSec));
+		const hasPrefixAffinity = normCand.startsWith(normComp);
+		if (!hasSectionAffinity && !hasPrefixAffinity) {
+			return 0;
+		}
+	}
+
 	// 1. Exact normalized match
 	if (normCand === normTarget) {
 		let score = 0.95;
@@ -293,17 +305,7 @@ function formatScalarValue(rawVal, attrDef) {
 		}
 
 		case 'json': {
-			if (typeof rawVal === 'object' && rawVal !== null) return rawVal;
-			const cleanStr = str.replace(/<[^>]*>/g, '').trim();
-			try {
-				return JSON.parse(cleanStr);
-			} catch {
-				try {
-					return JSON.parse(str);
-				} catch {
-					return str;
-				}
-			}
+			return tryParseJson(rawVal);
 		}
 
 		case 'enumeration': {
@@ -404,7 +406,7 @@ function mapComponentObject(
 					docContext.keyValues.forEach((kv, idx) => {
 						if (docContext.mappedKvIndices?.has(idx)) return;
 						const normSec = normalizeKey(kv.sectionHeading || kv.section || '');
-						if (normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec)) {
+						if (normSec && (normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec))) {
 							subFields[kv.rawKey] = kv.value;
 							if (docContext.mappedKvIndices) docContext.mappedKvIndices.add(idx);
 							if (kv.blockId && docContext.mappedBlockIds) docContext.mappedBlockIds.add(kv.blockId);
@@ -442,7 +444,7 @@ function mapComponentObject(
 					const matchingRgIndex = docContext.repeatedGroups.findIndex((rg, rgIdx) => {
 						if (docContext.mappedRepeatedGroupIndices?.has(rgIdx)) return false;
 						const normHeading = normalizeKey(rg.sectionHeading);
-						return normHeading === normAttr || normHeading.includes(normAttr) || normAttr.includes(normHeading);
+						return Boolean(normHeading) && (normHeading === normAttr || normHeading.includes(normAttr) || normAttr.includes(normHeading));
 					});
 
 					if (matchingRgIndex !== -1) {
@@ -563,13 +565,7 @@ function mapComponentObject(
 				result[attrName] = formatScalarValue(val, attr);
 				hasAnyData = true;
 			} else {
-				if (attr.type === 'string' || attr.type === 'text') {
-					result[attrName] = '';
-				} else if (attr.type === 'media' && attr.multiple) {
-					result[attrName] = [];
-				} else {
-					result[attrName] = null;
-				}
+				result[attrName] = getEmptyValueForField(attr);
 			}
 		}
 	}
@@ -677,7 +673,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 			const formattedVal = formatScalarValue(kvResult.match.value, attr);
 			data[attrName] = formattedVal;
 			fieldNotes.push({
+				field: attrName,
 				path: attrName,
+				status: 'found',
 				confidence: Math.min(1.0, kvResult.score),
 				sourceBlockIds: kvResult.match.blockId ? [kvResult.match.blockId] : [],
 				note: `Mapped from document table/field "${kvResult.match.rawKey}"`
@@ -696,7 +694,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 				data[attrName] = h1Block.text.trim();
 				mappedBlockIds.add(h1Block.id);
 				fieldNotes.push({
+					field: attrName,
 					path: attrName,
+					status: 'found',
 					confidence: 0.85,
 					sourceBlockIds: [h1Block.id],
 					note: 'Extracted from document heading'
@@ -710,7 +710,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 			if (data.title || data.name) {
 				data[attrName] = generateSlug(data.title || data.name);
 				fieldNotes.push({
+					field: attrName,
 					path: attrName,
+					status: 'found',
 					confidence: 0.95,
 					sourceBlockIds: [],
 					note: 'Auto-generated slug from title'
@@ -748,7 +750,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 				data[attrName] = bodyParagraphs.map((p) => p.html || `<p>${p.text}</p>`).join('\n');
 				for (const p of bodyParagraphs) mappedBlockIds.add(p.blockId);
 				fieldNotes.push({
+					field: attrName,
 					path: attrName,
+					status: 'found',
 					confidence: 0.8,
 					sourceBlockIds: bodyParagraphs.map((p) => p.blockId),
 					note: 'Extracted main content paragraphs'
@@ -763,7 +767,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 				// Match first unclaimed image
 				data[attrName] = docImages[0].id;
 				fieldNotes.push({
+					field: attrName,
 					path: attrName,
+					status: 'found',
 					confidence: 0.9,
 					sourceBlockIds: [],
 					note: `Associated document image ${docImages[0].id}`
@@ -773,11 +779,18 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		}
 
 		// Rule B: Field exists in schema, but missing in document -> clean empty typed value
-		if (attr.type === 'string' || attr.type === 'text' || attr.type === 'blocks' || attr.type === 'richtext') {
-			data[attrName] = '';
-		} else {
-			data[attrName] = null;
-		}
+		data[attrName] = getEmptyValueForField(attr);
+		fieldNotes.push({
+			field: attrName,
+			path: attrName,
+			status: 'missing',
+			value: null,
+			confidence: 0,
+			sourceBlockIds: [],
+			note: attr.required
+				? `Required field "${attrName}" was not found in document`
+				: `Field "${attrName}" not found in document (will remain empty in Strapi)`
+		});
 
 		if (attr.required) {
 			warnings.push(`Required field "${attrName}" was not found in document.`);
@@ -796,8 +809,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 
 		// First, collect all KVs that belong to this component section or are prefixed with attrName
 		keyValues.forEach((kv, idx) => {
-			const normSec = normalizeKey(kv.section || kv.sectionHeading || '');
-			const isSectionMatch = normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec);
+			const rawSec = kv.section || kv.sectionHeading || '';
+			const normSec = normalizeKey(rawSec);
+			const isSectionMatch = Boolean(normSec) && (normSec === normAttr || normSec.includes(normAttr) || normAttr.includes(normSec));
 			const isPrefixed = kv.rawKey.toLowerCase().startsWith(attrName.toLowerCase() + '.');
 
 			if (isSectionMatch || isPrefixed) {
@@ -809,16 +823,18 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 			}
 		});
 
-		// Fallback for fields not found in section: check global findBestKv
-		for (const [subName, subAttr] of Object.entries(compAttributes)) {
-			if (subAttr.manualOnly) continue;
-			if (compFields[subName] === undefined && compFields[normalizeKey(subName)] === undefined) {
-				const matchRes = findBestKv(subName, attrName, attrName);
-				if (matchRes && matchRes.match.value !== '') {
-					compFields[subName] = matchRes.match.value;
-					if (matchRes.match.blockId) {
-						compBlockIds.push(matchRes.match.blockId);
-						mappedBlockIds.add(matchRes.match.blockId);
+		// Fallback for fields not found in section: check findBestKv ONLY if component was matched in document
+		if (Object.keys(compFields).length > 0) {
+			for (const [subName, subAttr] of Object.entries(compAttributes)) {
+				if (subAttr.manualOnly) continue;
+				if (compFields[subName] === undefined && compFields[normalizeKey(subName)] === undefined) {
+					const matchRes = findBestKv(subName, attrName, attrName);
+					if (matchRes && matchRes.match.value !== '') {
+						compFields[subName] = matchRes.match.value;
+						if (matchRes.match.blockId) {
+							compBlockIds.push(matchRes.match.blockId);
+							mappedBlockIds.add(matchRes.match.blockId);
+						}
 					}
 				}
 			}
@@ -831,7 +847,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 			data[attrName] = mappedObj;
 			for (const bId of compBlockIds) mappedBlockIds.add(bId);
 			fieldNotes.push({
+				field: attrName,
 				path: attrName,
+				status: 'found',
 				confidence: 0.9,
 				sourceBlockIds: [...new Set(compBlockIds)],
 				note: `Mapped single component "${attrName}"`
@@ -839,6 +857,17 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		} else {
 			// Rule B: single component not in document is null
 			data[attrName] = null;
+			fieldNotes.push({
+				field: attrName,
+				path: attrName,
+				status: 'missing',
+				value: null,
+				confidence: 0,
+				sourceBlockIds: [],
+				note: attr.required
+					? `Required component "${attrName}" was not found in document`
+					: `Single component "${attrName}" not found in document (will remain empty in Strapi)`
+			});
 			if (attr.required) {
 				warnings.push(`Required component "${attrName}" was not found in document.`);
 			}
@@ -880,6 +909,7 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 
 		let matchingGroup = repeatedGroups.find((rg) => {
 			const normHeading = normalizeKey(rg.sectionHeading);
+			if (!normHeading) return false;
 			if (normHeading.includes(normAttrName) || normAttrName.includes(normHeading)) {
 				return true;
 			}
@@ -987,7 +1017,9 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 			data[attrName] = items;
 			for (const bId of compBlockIds) mappedBlockIds.add(bId);
 			fieldNotes.push({
+				field: attrName,
 				path: attrName,
+				status: 'found',
 				confidence: 0.85,
 				sourceBlockIds: [...new Set(compBlockIds)],
 				note: `Extracted ${items.length} repeatable items for "${attrName}"`
@@ -995,6 +1027,17 @@ export function mapDocumentToSchema({ intermediateDoc, documentModel, contentTyp
 		} else {
 			// Rule B: empty array
 			data[attrName] = [];
+			fieldNotes.push({
+				field: attrName,
+				path: attrName,
+				status: 'missing',
+				value: [],
+				confidence: 0,
+				sourceBlockIds: [],
+				note: attr.required
+					? `Required repeatable component "${attrName}" has no matching content`
+					: `Repeatable component "${attrName}" not found in document (will remain empty in Strapi)`
+			});
 			if (attr.required) {
 				warnings.push(`Required repeatable component "${attrName}" has no matching content.`);
 			}

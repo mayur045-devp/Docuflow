@@ -63,26 +63,27 @@
 					if (attr.repeatable) {
 						const items = Array.isArray(val) ? val : [];
 						const isFound = items.length > 0;
-						let status = 'Missing in Document';
+						let status = 'Missing → will remain empty';
 						let statusClass = 'bg-slate-800 text-slate-400 border-slate-700';
 
 						if (hasIssue) {
 							status = 'Invalid Value';
 							statusClass = 'bg-rose-950 text-rose-300 border-rose-800 font-semibold';
 						} else if (isFound) {
-							status = 'Successfully Mapped';
+							status = 'Mapped from Document';
 							statusClass = 'bg-emerald-950/80 text-emerald-300 border-emerald-800';
 						} else if (attr.required) {
-							status = 'Needs Manual Review';
-							statusClass = 'bg-amber-950 text-amber-300 border-amber-800 font-semibold';
+							status = 'Needs Manual Input';
+							statusClass = 'bg-rose-950 text-rose-300 border-rose-800 font-semibold';
 						}
 
 						result.push({
 							field: fieldPath,
+							source: isFound ? 'Document' : 'Missing',
 							type: 'repeatable component',
 							required: Boolean(attr.required),
-							extractedContent: fieldNote?.note || (isFound ? `${items.length} items extracted` : 'None'),
-							mappedValue: `${items.length} item(s)`,
+							extractedContent: isFound ? (fieldNote?.note || `${items.length} items extracted`) : 'Missing',
+							mappedValue: isFound ? `${items.length} item(s)` : '—',
 							status,
 							statusClass,
 							indent,
@@ -101,27 +102,28 @@
 					} else {
 						// Single component
 						const compVal = typeof val === 'object' && val !== null ? val : null;
-						const isFound = Boolean(compVal && Object.values(compVal).some((v) => v !== '' && v !== null));
-						let status = 'Missing in Document';
+						const isFound = Boolean(compVal && Object.values(compVal).some((v) => v !== '' && v !== null && (!Array.isArray(v) || v.length > 0)));
+						let status = 'Missing → will remain empty';
 						let statusClass = 'bg-slate-800 text-slate-400 border-slate-700';
 
 						if (hasIssue) {
 							status = 'Invalid Value';
 							statusClass = 'bg-rose-950 text-rose-300 border-rose-800 font-semibold';
 						} else if (isFound) {
-							status = 'Successfully Mapped';
+							status = 'Mapped from Document';
 							statusClass = 'bg-emerald-950/80 text-emerald-300 border-emerald-800';
 						} else if (attr.required) {
-							status = 'Needs Manual Review';
-							statusClass = 'bg-amber-950 text-amber-300 border-amber-800 font-semibold';
+							status = 'Needs Manual Input';
+							statusClass = 'bg-rose-950 text-rose-300 border-rose-800 font-semibold';
 						}
 
 						result.push({
 							field: fieldPath,
+							source: isFound ? 'Document' : 'Missing',
 							type: 'single component',
 							required: Boolean(attr.required),
-							extractedContent: fieldNote?.note || (isFound ? 'Component content found' : 'None'),
-							mappedValue: isFound ? 'Object populated' : 'Empty',
+							extractedContent: isFound ? (fieldNote?.note || 'Component content found') : 'Missing',
+							mappedValue: isFound ? 'Object populated' : '—',
 							status,
 							statusClass,
 							indent,
@@ -136,34 +138,36 @@
 
 				// Scalar attribute
 				const isFound =
-					val !== undefined &&
-					val !== null &&
-					(typeof val === 'string'
-						? val.trim().length > 0
-						: Array.isArray(val)
-							? val.length > 0
-							: true);
+					fieldNote?.status === 'found' ||
+					(val !== undefined &&
+						val !== null &&
+						(typeof val === 'string'
+							? val.trim().length > 0
+							: Array.isArray(val)
+								? val.length > 0
+								: true));
 
-				let status = 'Missing in Document';
+				let status = 'Missing → will remain empty';
 				let statusClass = 'bg-slate-800 text-slate-400 border-slate-700';
 
 				if (hasIssue) {
 					status = 'Invalid Value';
 					statusClass = 'bg-rose-950 text-rose-300 border-rose-800 font-semibold';
 				} else if (isFound) {
-					status = 'Successfully Mapped';
+					status = 'Mapped from Document';
 					statusClass = 'bg-emerald-950/80 text-emerald-300 border-emerald-800';
 				} else if (attr.required) {
-					status = 'Needs Manual Review';
+					status = 'Needs Manual Input';
 					statusClass = 'bg-rose-950/80 text-rose-300 border-rose-800 font-semibold';
 				}
 
 				result.push({
 					field: fieldPath,
+					source: isFound ? 'Document' : 'Missing',
 					type: attr.type,
 					required: Boolean(attr.required),
-					extractedContent: fieldNote?.note || (isFound ? 'Found in document' : 'None'),
-					mappedValue: formatPreview(val),
+					extractedContent: isFound ? (fieldNote?.note || 'Found in document') : 'Missing',
+					mappedValue: isFound ? formatPreview(val) : '—',
 					status,
 					statusClass,
 					indent,
@@ -196,9 +200,9 @@
 		return result;
 	});
 
-	let mappedCount = $derived(rows.filter((r) => r.status === 'Successfully Mapped').length);
-	let missingCount = $derived(rows.filter((r) => r.status === 'Missing in Document').length);
-	let needsReviewCount = $derived(rows.filter((r) => r.status === 'Needs Manual Review' || r.status === 'Invalid Value').length);
+	let mappedCount = $derived(rows.filter((r) => r.status === 'Mapped from Document').length);
+	let missingCount = $derived(rows.filter((r) => r.status === 'Missing → will remain empty').length);
+	let needsReviewCount = $derived(rows.filter((r) => r.status === 'Needs Manual Input' || r.status === 'Invalid Value').length);
 	let extraCount = $derived(rows.filter((r) => r.status === 'No Matching Schema Field').length);
 </script>
 
@@ -232,7 +236,7 @@
 			</span>
 			{#if missingCount > 0}
 				<span class="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-slate-400">
-					○ {missingCount} Empty
+					○ {missingCount} Empty in Document
 				</span>
 			{/if}
 			{#if needsReviewCount > 0}
@@ -273,17 +277,17 @@
 			<table class="w-full text-left text-xs">
 				<thead>
 					<tr class="border-b border-slate-800 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-						<th class="px-3 py-2.5">Strapi Field</th>
-						<th class="px-3 py-2.5">Field Type</th>
-						<th class="px-3 py-2.5">Extracted Document Content</th>
-						<th class="px-3 py-2.5">Mapped Value</th>
-						<th class="px-3 py-2.5">Mapping Status</th>
+						<th class="px-3 py-2.5">Field</th>
+						<th class="px-3 py-2.5">Source</th>
+						<th class="px-3 py-2.5">Type</th>
+						<th class="px-3 py-2.5">Value</th>
+						<th class="px-3 py-2.5">Status</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-800/50">
 					{#each rows as row}
 						<tr
-							class="transition hover:bg-slate-900/60 {row.isHeader ? 'bg-slate-900/40 font-semibold' : ''} {row.status === 'Needs Manual Review' || row.status === 'Invalid Value' ? 'bg-rose-950/20' : ''}"
+							class="transition hover:bg-slate-900/60 {row.isHeader ? 'bg-slate-900/40 font-semibold' : ''} {row.status === 'Needs Manual Input' || row.status === 'Invalid Value' ? 'bg-rose-950/20' : ''}"
 						>
 							<td class="px-3 py-2.5 text-slate-200 font-medium" style="padding-left: {row.indent * 1.25 + 0.75}rem">
 								{#if !row.isExtra && onSelectField}
@@ -303,11 +307,15 @@
 									</span>
 								{/if}
 							</td>
+							<td class="px-3 py-2.5">
+								<span
+									class="inline-block rounded px-2 py-0.5 font-mono text-[10px] {row.source === 'Document' ? 'border border-indigo-800/80 bg-indigo-950/80 text-indigo-300' : 'bg-slate-800 text-slate-400'}"
+								>
+									{row.source || (row.isExtra ? 'Extra' : 'Document')}
+								</span>
+							</td>
 							<td class="px-3 py-2.5 font-mono text-[11px] text-slate-400">
 								{row.type}
-							</td>
-							<td class="px-3 py-2.5 max-w-[220px] truncate text-slate-400 text-[11px]" title={row.extractedContent}>
-								{row.extractedContent}
 							</td>
 							<td class="px-3 py-2.5 max-w-[240px] truncate font-mono text-[11px] text-slate-300" title={row.mappedValue}>
 								{row.mappedValue}

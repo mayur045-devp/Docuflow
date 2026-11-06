@@ -1,5 +1,6 @@
 import { strapiFetch } from '../client.js';
 import { getEnv } from '../../env.js';
+import { getActiveConnection, normalizeStrapiUrl } from '../connection.js';
 
 export const v5Adapter = {
 	version: '5',
@@ -163,8 +164,11 @@ export const v5Adapter = {
 	 * @param {string} [uid='']
 	 */
 	adminLink(entry, singularName, kind = 'collectionType', uid = '') {
-		const { STRAPI_URL, STRAPI_ADMIN_URL } = getEnv();
-		const base = STRAPI_ADMIN_URL || `${STRAPI_URL}/admin`;
+		const { STRAPI_ADMIN_URL } = getEnv();
+		const conn = getActiveConnection();
+		const base = STRAPI_ADMIN_URL
+			? normalizeStrapiUrl(STRAPI_ADMIN_URL)
+			: `${normalizeStrapiUrl(conn.strapiUrl)}/admin`;
 		const typeUid = uid || `api::${singularName}.${singularName}`;
 		if (kind === 'singleType') {
 			return `${base}/content-manager/single-types/${typeUid}`;
@@ -179,6 +183,18 @@ export const v5Adapter = {
 	 */
 	formatRelation(relation) {
 		if (!relation) return null;
+		if (Array.isArray(relation)) {
+			if (relation.length === 0) return { set: [] };
+			return {
+				set: relation.map((item) => {
+					const docId = typeof item === 'object' && item !== null ? item.documentId || item.id : item;
+					return { documentId: String(docId) };
+				})
+			};
+		}
+		if (typeof relation === 'object' && ('set' in relation || 'connect' in relation || 'disconnect' in relation)) {
+			return relation;
+		}
 		const docId = typeof relation === 'object' ? relation.documentId || relation.id : relation;
 		return { connect: [{ documentId: String(docId) }] };
 	}
