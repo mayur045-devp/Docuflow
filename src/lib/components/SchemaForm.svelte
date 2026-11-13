@@ -57,7 +57,7 @@
 	}
 </script>
 
-<div class="space-y-4">
+<div class="space-y-3.5">
 	{#if schema && schema.attributes}
 		{#each Object.entries(schema.attributes) as [key, attr]}
 			{@const note = getFieldNote(key)}
@@ -66,20 +66,26 @@
 
 			<div
 				id={`field-${fullPath}`}
-				class="space-y-1.5 rounded-xl border bg-slate-900/60 p-3.5 transition-all duration-150
-					{issue ? 'border-rose-800/80 bg-rose-950/20' : 'border-slate-800 hover:border-slate-700'}"
+				class="space-y-2 rounded-xl border p-3.5 transition-colors sm:p-4
+					{issue
+					? 'border-rose-500/45 bg-rose-500/8'
+					: 'border-slate-800/90 bg-[#0b0e14]/70 hover:border-slate-700/80'}"
 			>
 				<!-- Label and Confidence Badge Row -->
-				<div class="flex items-center justify-between gap-2">
+				<div class="flex flex-wrap items-center justify-between gap-2">
 					<label
 						for={`input-${fullPath}`}
-						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-200"
+						class="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-200"
 					>
-						<span>{key}</span>
+						<span class="break-all">{key}</span>
 						{#if attr.required}
 							<span class="font-bold text-rose-400" title="Required field">*</span>
 						{/if}
-						<span class="font-mono text-[10px] font-normal text-slate-500">({attr.type})</span>
+						<span
+							class="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[10px] font-normal text-slate-400"
+						>
+							{attr.type}
+						</span>
 					</label>
 
 					{#if note}
@@ -95,7 +101,7 @@
 						value={data[key] || ''}
 						onfocus={() => handleFieldFocus(key)}
 						oninput={(e) => updateField(key, e.currentTarget.value)}
-						class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder-slate-600 transition focus:border-indigo-500 focus:outline-none"
+						class="df-input px-3 py-2 text-xs"
 					/>
 				{:else if attr.type === 'text'}
 					<textarea
@@ -104,8 +110,7 @@
 						rows={3}
 						onfocus={() => handleFieldFocus(key)}
 						oninput={(e) => updateField(key, e.currentTarget.value)}
-						class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder-slate-600 transition focus:border-indigo-500 focus:outline-none"
-					></textarea>
+						class="df-input px-3 py-2 text-xs leading-relaxed"></textarea>
 				{:else if attr.type === 'uid'}
 					<div class="flex items-center gap-2">
 						<input
@@ -115,12 +120,12 @@
 							onfocus={() => handleFieldFocus(key)}
 							oninput={(e) => updateField(key, e.currentTarget.value)}
 							placeholder="url-friendly-slug"
-							class="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-indigo-300 placeholder-slate-600 transition focus:border-indigo-500 focus:outline-none"
+							class="df-input flex-1 px-3 py-2 font-mono text-xs text-indigo-300"
 						/>
 						{#if attr.targetField}
 							<button
 								type="button"
-								class="cursor-pointer rounded-xl bg-slate-800 px-2.5 py-2 text-xs text-slate-300 hover:bg-slate-700"
+								class="df-btn-secondary min-h-[34px] shrink-0 px-3 py-1.5 text-xs"
 								title={`Regenerate from ${attr.targetField}`}
 								onclick={() => updateField(key, generateSlug(data[attr.targetField] || ''))}
 							>
@@ -141,7 +146,7 @@
 						value={data[key] !== undefined ? data[key] : ''}
 						onfocus={() => handleFieldFocus(key)}
 						oninput={(e) => updateField(key, e.currentTarget.valueAsNumber)}
-						class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder-slate-600 transition focus:border-indigo-500 focus:outline-none"
+						class="df-input px-3 py-2 text-xs tabular-nums"
 					/>
 				{:else if attr.type === 'boolean'}
 					<label class="flex cursor-pointer items-center gap-2.5 py-1">
@@ -150,9 +155,9 @@
 							type="checkbox"
 							checked={Boolean(data[key])}
 							onchange={(e) => updateField(key, e.currentTarget.checked)}
-							class="h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900"
+							class="h-4 w-4 rounded border-slate-700 bg-[#090b10] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-[#0b0e14]"
 						/>
-						<span class="text-xs text-slate-300">Enabled</span>
+						<span class="text-xs font-medium text-slate-300">Enabled</span>
 					</label>
 				{:else if attr.type === 'date'}
 					<input
@@ -161,7 +166,7 @@
 						value={data[key] || ''}
 						onfocus={() => handleFieldFocus(key)}
 						oninput={(e) => updateField(key, e.currentTarget.value)}
-						class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder-slate-600 transition focus:border-indigo-500 focus:outline-none"
+						class="df-input px-3 py-2 text-xs"
 					/>
 				{:else if attr.type === 'enumeration'}
 					<select
@@ -169,11 +174,11 @@
 						value={data[key] || ''}
 						onfocus={() => handleFieldFocus(key)}
 						onchange={(e) => updateField(key, e.currentTarget.value)}
-						class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 transition focus:border-indigo-500 focus:outline-none"
+						class="df-input px-3 py-2 text-xs"
 					>
-						<option value="">Select option...</option>
+						<option value="" class="bg-[#0b0e14]">Select option...</option>
 						{#each attr.enum || [] as opt}
-							<option value={opt}>{opt}</option>
+							<option value={opt} class="bg-[#0b0e14]">{opt}</option>
 						{/each}
 					</select>
 				{:else if attr.type === 'media'}
@@ -204,7 +209,9 @@
 							onchange={(val) => updateField(key, val)}
 						/>
 					{:else}
-						<div class="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+						<div
+							class="space-y-3 rounded-xl border border-l-2 border-slate-800/80 border-l-indigo-500/40 bg-[#0f131a]/60 p-3"
+						>
 							<SchemaForm
 								schema={attr.schema}
 								data={data[key] || {}}
@@ -239,7 +246,7 @@
 
 				<!-- Inline Validation Error -->
 				{#if issue}
-					<p class="flex items-center gap-1 pt-0.5 text-xs font-medium text-rose-400">
+					<p class="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-rose-300">
 						<span>&bull;</span>
 						<span>{issue.message}</span>
 					</p>

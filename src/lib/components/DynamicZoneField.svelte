@@ -70,14 +70,14 @@
 <div class="space-y-3">
 	{#each value || [] as block, idx}
 		{@const compSchema = schemas[block.__component]}
-		<div class="overflow-hidden rounded-xl border border-indigo-900/60 bg-slate-950/80 shadow-sm">
+		<div class="overflow-hidden rounded-xl border border-indigo-500/25 bg-[#0b0e14]">
 			<!-- Block Header -->
 			<div
-				class="flex items-center justify-between border-b border-indigo-900/40 bg-slate-900/90 px-3 py-2 text-xs"
+				class="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-500/15 bg-[#151b24]/80 px-3 py-2 text-xs"
 			>
-				<div class="flex items-center gap-2">
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<span
-						class="rounded border border-indigo-800 bg-indigo-950 px-2 py-0.5 font-mono text-[10px] text-indigo-300"
+						class="truncate rounded-md border border-indigo-500/30 bg-indigo-500/12 px-2 py-0.5 font-mono text-[10px] text-indigo-300"
 					>
 						{block.__component}
 					</span>
@@ -86,11 +86,12 @@
 					</span>
 				</div>
 
-				<div class="flex items-center gap-1 text-slate-400">
+				<div class="flex shrink-0 items-center gap-1 text-slate-400">
 					<button
 						type="button"
 						disabled={idx === 0}
-						class="cursor-pointer rounded p-1 hover:bg-slate-800 hover:text-white disabled:opacity-20"
+						aria-label="Move block up"
+						class="cursor-pointer rounded-md p-1.5 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
 						onclick={() => moveBlock(idx, -1)}
 					>
 						&uarr;
@@ -98,14 +99,16 @@
 					<button
 						type="button"
 						disabled={idx === (value || []).length - 1}
-						class="cursor-pointer rounded p-1 hover:bg-slate-800 hover:text-white disabled:opacity-20"
+						aria-label="Move block down"
+						class="cursor-pointer rounded-md p-1.5 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
 						onclick={() => moveBlock(idx, 1)}
 					>
 						&darr;
 					</button>
 					<button
 						type="button"
-						class="ml-1 cursor-pointer rounded p-1 text-slate-500 hover:bg-rose-950 hover:text-rose-400"
+						aria-label="Remove block"
+						class="ml-0.5 cursor-pointer rounded-md p-1.5 text-slate-500 transition hover:bg-rose-500/15 hover:text-rose-300"
 						onclick={() => removeBlock(idx)}
 					>
 						&times;
@@ -114,7 +117,7 @@
 			</div>
 
 			<!-- Form for Dynamic Component -->
-			<div class="space-y-3 bg-slate-950/40 p-3.5">
+			<div class="space-y-3 p-3.5">
 				{#if compSchema}
 					<SchemaForm
 						schema={compSchema}
@@ -127,7 +130,7 @@
 						onchange={(newVal) => updateBlock(idx, newVal)}
 					/>
 				{:else}
-					<div class="text-xs text-amber-400">
+					<div class="text-xs text-amber-300">
 						Schema for component {block.__component} is not loaded.
 					</div>
 				{/if}
@@ -137,22 +140,15 @@
 
 	<!-- Add Block Controls -->
 	{#if components.length > 0}
-		<div class="flex items-center gap-2 pt-1">
-			<select
-				bind:value={selectedCompUid}
-				class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
-			>
+		<div class="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+			<select bind:value={selectedCompUid} class="df-input flex-1 px-3 py-2 text-xs">
 				{#each components as compUid}
-					<option value={compUid}>
+					<option value={compUid} class="bg-[#0b0e14] text-white">
 						{schemas[compUid]?.displayName || compUid}
 					</option>
 				{/each}
 			</select>
-			<button
-				type="button"
-				class="cursor-pointer rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow transition hover:bg-indigo-500"
-				onclick={addBlock}
-			>
+			<button type="button" class="df-btn-primary shrink-0 px-3.5 py-2 text-xs" onclick={addBlock}>
 				+ Add to Dynamic Zone
 			</button>
 		</div>

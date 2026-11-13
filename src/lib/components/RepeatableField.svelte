@@ -71,20 +71,29 @@
 
 <div class="space-y-3">
 	{#each value || [] as item, idx}
-		<div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 shadow-sm">
+		<div class="overflow-hidden rounded-xl border border-slate-800/90 bg-[#0b0e14]">
 			<!-- Item Header -->
 			<div
-				class="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/80 px-3 py-2 text-xs"
+				class="flex items-center justify-between gap-2 border-b border-slate-800/80 bg-[#151b24]/70 px-3 py-2 text-xs"
 			>
-				<div class="flex items-center gap-2">
-					<button
-						type="button"
-						class="cursor-pointer font-bold text-slate-400 hover:text-white"
-						onclick={() => toggleCollapse(idx)}
+				<button
+					type="button"
+					aria-expanded={!collapsedMap[idx]}
+					class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+					onclick={() => toggleCollapse(idx)}
+				>
+					<svg
+						class="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform {collapsedMap[idx]
+							? ''
+							: 'rotate-90'}"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2.5"
 					>
-						{collapsedMap[idx] ? '+' : '–'}
-					</button>
-					<span class="font-semibold text-slate-300">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+					</svg>
+					<span class="truncate font-semibold text-slate-200">
 						Item #{idx + 1}
 						{#if item.title || item.question || item.name}
 							<span class="ml-1 font-normal text-slate-400">
@@ -92,14 +101,15 @@
 							</span>
 						{/if}
 					</span>
-				</div>
+				</button>
 
 				<!-- Actions: Reorder Up, Reorder Down, Remove -->
-				<div class="flex items-center gap-1 text-slate-400">
+				<div class="flex shrink-0 items-center gap-1 text-slate-400">
 					<button
 						type="button"
 						disabled={idx === 0}
-						class="cursor-pointer rounded p-1 hover:bg-slate-800 hover:text-white disabled:opacity-20"
+						aria-label="Move item up"
+						class="cursor-pointer rounded-md p-1.5 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
 						title="Move up"
 						onclick={() => moveItem(idx, -1)}
 					>
@@ -108,7 +118,8 @@
 					<button
 						type="button"
 						disabled={idx === (value || []).length - 1}
-						class="cursor-pointer rounded p-1 hover:bg-slate-800 hover:text-white disabled:opacity-20"
+						aria-label="Move item down"
+						class="cursor-pointer rounded-md p-1.5 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
 						title="Move down"
 						onclick={() => moveItem(idx, 1)}
 					>
@@ -116,7 +127,8 @@
 					</button>
 					<button
 						type="button"
-						class="ml-1 cursor-pointer rounded p-1 text-slate-500 hover:bg-rose-950/80 hover:text-rose-400"
+						aria-label="Remove item"
+						class="ml-0.5 cursor-pointer rounded-md p-1.5 text-slate-500 transition hover:bg-rose-500/15 hover:text-rose-300"
 						title="Remove item"
 						onclick={() => removeItem(idx)}
 					>
@@ -127,7 +139,7 @@
 
 			<!-- Item Fields Form -->
 			{#if !collapsedMap[idx]}
-				<div class="space-y-3 bg-slate-950/40 p-3.5">
+				<div class="space-y-3 p-3.5">
 					<SchemaForm
 						{schema}
 						data={item}
@@ -145,7 +157,7 @@
 
 	<button
 		type="button"
-		class="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-indigo-500 hover:bg-indigo-950/20 hover:text-white"
+		class="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-700/80 bg-[#0b0e14]/60 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:border-indigo-500/70 hover:bg-indigo-500/10 hover:text-white"
 		onclick={addItem}
 	>
 		<span class="text-sm font-bold text-indigo-400">+</span>

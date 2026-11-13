@@ -110,53 +110,62 @@
 	}
 </script>
 
-<div class="mx-auto max-w-5xl space-y-8 px-4 py-8">
-	<div>
-		<h1 class="text-2xl font-bold tracking-tight text-white">System Settings &amp; Configuration</h1>
-		<p class="mt-1 text-xs text-slate-400">
-			Manage external Strapi CMS connection, AI provider settings, and live content type schema status.
+<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:space-y-8 sm:px-6 sm:py-8">
+	<div class="space-y-1">
+		<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl">
+			System Settings &amp; Configuration
+		</h1>
+		<p class="text-xs leading-relaxed text-slate-400 sm:text-sm">
+			Manage external Strapi CMS connection, AI provider settings, and live content type schema
+			status.
 		</p>
 	</div>
 
 	<!-- 1. Connection Card -->
-	<div class="space-y-6 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-		<div class="flex items-center justify-between border-b border-slate-800 pb-4">
-			<div>
-				<h3 class="text-sm font-bold text-white">Strapi CMS Connection</h3>
-				<p class="mt-0.5 text-xs text-slate-400">
-					Supports arbitrary valid Strapi base URLs. The selected Strapi instance is the single source of truth.
-				</p>
-			</div>
+	<section class="df-card space-y-5 p-4 sm:p-6">
+		<div class="border-b border-slate-800/80 pb-4">
+			<h2 class="text-sm font-bold text-white sm:text-base">Strapi CMS Connection</h2>
+			<p class="mt-1 text-xs leading-relaxed text-slate-400">
+				Supports arbitrary valid Strapi base URLs. The selected Strapi instance is the single source
+				of truth.
+			</p>
 		</div>
 
 		<!-- Active Connection Info -->
-		<div class="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3">
-			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">Active Strapi Base URL</span>
-				<span class="font-mono font-medium text-white break-all">{config.strapiUrl}</span>
+		<div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3 sm:gap-4">
+			<div class="df-card-inset p-3.5">
+				<span class="mb-1.5 block text-[11px] font-medium text-slate-400"
+					>Active Strapi Base URL</span
+				>
+				<span class="font-mono font-medium break-all text-white">{config.strapiUrl}</span>
 			</div>
-			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">Detected Version</span>
-				<span class="font-mono font-bold text-indigo-400">Strapi {config.detectedVersion}.x</span>
+			<div class="df-card-inset p-3.5">
+				<span class="mb-1.5 block text-[11px] font-medium text-slate-400">Detected Version</span>
+				<span class="font-mono font-bold text-indigo-300">Strapi {config.detectedVersion}.x</span>
 			</div>
-			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">API Token Status</span>
-				<span class="font-mono {config.hasToken ? 'text-emerald-400' : 'text-rose-400'} font-bold">
+			<div class="df-card-inset p-3.5">
+				<span class="mb-1.5 block text-[11px] font-medium text-slate-400">API Token Status</span>
+				<span class="font-mono font-bold {config.hasToken ? 'text-emerald-300' : 'text-rose-300'}">
 					{config.hasToken ? 'Configured (Server-Side Only)' : 'Missing'}
 				</span>
 			</div>
 		</div>
 
 		<!-- Switch / Test Dynamic Connection Form -->
-		<div class="space-y-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-			<h4 class="text-xs font-bold text-white uppercase tracking-wider">Connect to a Strapi Environment</h4>
-			<p class="text-xs text-slate-400">
-				Enter any valid Strapi base URL and optional API token. Trailing slashes are normalized automatically.
-			</p>
+		<div class="df-card-inset space-y-4 p-4 sm:p-5">
+			<div class="space-y-1">
+				<h3 class="text-xs font-bold tracking-wider text-white uppercase">
+					Connect to a Strapi Environment
+				</h3>
+				<p class="text-xs leading-relaxed text-slate-400">
+					Enter any valid Strapi base URL and optional API token. Trailing slashes are normalized
+					automatically.
+				</p>
+			</div>
 
-			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				<div>
-					<label for="strapi-url-input" class="mb-1 block text-xs font-semibold text-slate-300">
+					<label for="strapi-url-input" class="mb-1.5 block text-xs font-semibold text-slate-300">
 						Strapi Base URL
 					</label>
 					<input
@@ -164,12 +173,12 @@
 						type="url"
 						bind:value={inputStrapiUrl}
 						placeholder="https://strapi-preprod.testlifecycle.com"
-						class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+						class="df-input px-3.5 py-2.5 font-mono text-xs"
 					/>
 				</div>
 
 				<div>
-					<label for="strapi-token-input" class="mb-1 block text-xs font-semibold text-slate-300">
+					<label for="strapi-token-input" class="mb-1.5 block text-xs font-semibold text-slate-300">
 						API Token (Leave blank to use currently configured token)
 					</label>
 					<input
@@ -177,16 +186,16 @@
 						type="password"
 						bind:value={inputApiToken}
 						placeholder="Enter token for this environment"
-						class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none"
+						class="df-input px-3.5 py-2.5 font-mono text-xs"
 					/>
 				</div>
 			</div>
 
-			<div class="flex flex-wrap items-center gap-3 pt-2">
+			<div class="flex flex-col gap-2.5 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
 				<button
 					type="button"
 					disabled={testingConnection || savingConnection || !inputStrapiUrl.trim()}
-					class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-slate-700 disabled:opacity-40"
+					class="df-btn-secondary w-full px-4 py-2 text-xs sm:w-auto"
 					onclick={() => testConnection(false)}
 				>
 					{testingConnection ? 'Testing...' : 'Test Connection'}
@@ -195,7 +204,7 @@
 				<button
 					type="button"
 					disabled={testingConnection || savingConnection || !inputStrapiUrl.trim()}
-					class="cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-indigo-500 disabled:opacity-40"
+					class="df-btn-primary w-full px-4 py-2 text-xs sm:w-auto"
 					onclick={() => testConnection(true)}
 				>
 					{savingConnection ? 'Saving & Connecting...' : 'Save & Switch Active Connection'}
@@ -203,131 +212,166 @@
 			</div>
 		</div>
 
-		<!-- Diagnostic Test Result (Requirement 12) -->
+		<!-- Diagnostic Test Result -->
 		{#if testResult}
 			<div
-				class="rounded-xl border p-4 text-xs {testResult.success
-					? 'border-emerald-800 bg-emerald-950/30 text-emerald-300'
-					: 'border-rose-800 bg-rose-950/30 text-rose-300'} space-y-2"
+				role="status"
+				class="space-y-2.5 rounded-xl border p-4 text-xs {testResult.success
+					? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+					: 'border-rose-500/35 bg-rose-500/10 text-rose-200'}"
 			>
-				<div class="flex items-center justify-between font-bold text-sm">
-					<span>{testResult.success ? '✓ Strapi Connection Successful' : '✗ Connection Failed'}</span>
+				<div class="flex flex-wrap items-center justify-between gap-2 text-sm font-bold">
+					<span
+						>{testResult.success ? '✓ Strapi Connection Successful' : '✗ Connection Failed'}</span
+					>
 					{#if testResult.status}
-						<span class="rounded px-2 py-0.5 font-mono text-[11px] {testResult.success ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300'}">
+						<span
+							class="rounded-md px-2 py-0.5 font-mono text-[11px] {testResult.success
+								? 'bg-emerald-500/20 text-emerald-200'
+								: 'bg-rose-500/20 text-rose-200'}"
+						>
 							HTTP {testResult.status}
 						</span>
 					{/if}
 				</div>
 
-				<p class="text-xs {testResult.success ? 'text-emerald-200' : 'text-rose-200'}">
+				<p
+					class="text-xs leading-relaxed {testResult.success
+						? 'text-emerald-200'
+						: 'text-rose-200'}"
+				>
 					{testResult.message}
 				</p>
 
 				{#if testResult.errorCode}
-					<div class="font-mono text-[11px] text-slate-400">
-						Error Code: <strong class="text-rose-400">{testResult.errorCode}</strong>
+					<div class="font-mono text-[11px] text-slate-300">
+						Error Code: <strong class="text-rose-300">{testResult.errorCode}</strong>
 					</div>
 				{/if}
 
 				{#if testResult.normalizedUrl}
-					<div class="font-mono text-[11px] text-slate-400">
-						Normalized URL: <strong class="text-slate-200">{testResult.normalizedUrl}</strong>
+					<div class="font-mono text-[11px] break-all text-slate-300">
+						Normalized URL: <strong class="text-white">{testResult.normalizedUrl}</strong>
 						{#if testResult.durationMs}
-							<span class="text-slate-500">({testResult.durationMs}ms)</span>
+							<span class="text-slate-400">({testResult.durationMs}ms)</span>
 						{/if}
 					</div>
 				{/if}
 
 				{#if testResult.success}
-					<div class="grid grid-cols-2 gap-2 pt-2 text-slate-300 sm:grid-cols-4 font-mono text-[11px]">
-						<div>Status: <strong class="text-emerald-400">● Connected</strong></div>
-						<div>Version: <strong class="text-indigo-400">Strapi {testResult.version || '5'}.x</strong></div>
-						<div>Content Types: <strong class="text-white">{testResult.contentTypesCount || 0} discovered</strong></div>
-						<div>Components: <strong class="text-white">{testResult.componentsCount || 0} discovered</strong></div>
+					<div
+						class="grid grid-cols-1 gap-2 pt-1.5 font-mono text-[11px] text-slate-200 sm:grid-cols-2 md:grid-cols-4"
+					>
+						<div>Status: <strong class="text-emerald-300">● Connected</strong></div>
+						<div>
+							Version: <strong class="text-indigo-300">Strapi {testResult.version || '5'}.x</strong>
+						</div>
+						<div>
+							Content Types: <strong class="text-white"
+								>{testResult.contentTypesCount || 0} discovered</strong
+							>
+						</div>
+						<div>
+							Components: <strong class="text-white"
+								>{testResult.componentsCount || 0} discovered</strong
+							>
+						</div>
 					</div>
 				{/if}
 			</div>
 		{/if}
-	</div>
+	</section>
 
 	<!-- 2. AI Provider Card -->
-	<div class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-		<h3 class="border-b border-slate-800 pb-3 text-sm font-bold text-white">
+	<section class="df-card space-y-4 p-4 sm:p-6">
+		<h2 class="border-b border-slate-800/80 pb-3 text-sm font-bold text-white sm:text-base">
 			AI Engine Configuration
-		</h3>
-		<div class="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2">
-			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">Active Provider</span>
+		</h2>
+		<div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 sm:gap-4">
+			<div class="df-card-inset p-3.5">
+				<span class="mb-1.5 block text-[11px] font-medium text-slate-400">Active Provider</span>
 				<span class="font-mono font-bold text-white uppercase">{config.aiProvider}</span>
 			</div>
-			<div class="rounded-xl border border-slate-800 bg-slate-950 p-3">
-				<span class="mb-1 block text-slate-500">Model</span>
-				<span class="font-mono font-bold text-indigo-400">{config.geminiModel}</span>
+			<div class="df-card-inset p-3.5">
+				<span class="mb-1.5 block text-[11px] font-medium text-slate-400">Model</span>
+				<span class="font-mono font-bold break-all text-indigo-300">{config.geminiModel}</span>
 			</div>
 		</div>
-	</div>
+	</section>
 
 	<!-- 3. Discovered Content Types -->
-	<div class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-		<div class="flex items-center justify-between border-b border-slate-800 pb-3">
-			<div>
-				<h3 class="text-sm font-bold text-white">Live Discovered Content Types</h3>
-				<p class="mt-0.5 text-xs text-slate-400">
-					Single Source of Truth: <span class="font-mono font-bold text-emerald-400">{config.strapiUrl}</span>
+	<section class="df-card space-y-4 p-4 sm:p-6">
+		<div
+			class="flex flex-col gap-3 border-b border-slate-800/80 pb-4 sm:flex-row sm:items-center sm:justify-between"
+		>
+			<div class="min-w-0 space-y-1">
+				<h2 class="text-sm font-bold text-white sm:text-base">Live Discovered Content Types</h2>
+				<p class="text-xs break-all text-slate-400">
+					Single Source of Truth:
+					<span class="font-mono font-semibold text-emerald-300">{config.strapiUrl}</span>
 				</p>
 			</div>
 			<span
-				class="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 font-mono text-xs text-slate-400"
+				class="w-fit shrink-0 rounded-full border border-slate-800 bg-[#0b0e14] px-3 py-1 font-mono text-xs text-slate-300 tabular-nums"
 			>
 				{contentTypes.length} types loaded
 			</span>
 		</div>
 
-		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+		<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
 			{#each contentTypes as ct}
-				<div class="space-y-2 rounded-xl border border-slate-800 bg-slate-950 p-4">
-					<div class="flex items-center justify-between">
+				<div class="df-card-inset space-y-2 p-4 transition hover:border-slate-700/80">
+					<div class="flex flex-wrap items-center justify-between gap-2">
 						<span class="text-sm font-bold text-white">{ct.displayName}</span>
 						<span
-							class="rounded border px-2 py-0.5 font-mono text-[10px] {ct.kind === 'singleType' ? 'border-emerald-900 bg-emerald-950/60 text-emerald-400' : 'border-indigo-900/60 bg-indigo-950/60 text-indigo-400'}"
+							class="rounded-md border px-2 py-0.5 font-mono text-[10px] font-medium {ct.kind ===
+							'singleType'
+								? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+								: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'}"
 						>
 							{ct.kind === 'singleType' ? 'Single Type' : 'Collection Type'} &bull; {ct.singularName}
 						</span>
 					</div>
-					<div class="text-[11px] text-slate-400">
+					<div class="text-[11px] text-slate-400 tabular-nums">
 						{Object.keys(ct.attributes || {}).length} mappable attributes &bull; Draft &amp; Publish:
-						{ct.draftAndPublish ? 'Yes' : 'No'}
+						<span class="font-medium text-slate-300">{ct.draftAndPublish ? 'Yes' : 'No'}</span>
 					</div>
 				</div>
 			{/each}
 		</div>
-	</div>
+	</section>
 
 	<!-- 4. Manual Schema Tool -->
-	<div class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-		<div>
-			<h3 class="text-sm font-bold text-white">Custom Schema Preview / Registration</h3>
-			<p class="mt-0.5 text-xs text-slate-400">
+	<section class="df-card space-y-4 p-4 sm:p-6">
+		<div class="border-b border-slate-800/80 pb-3">
+			<h2 class="text-sm font-bold text-white sm:text-base">
+				Custom Schema Preview / Registration
+			</h2>
+			<p class="mt-1 text-xs leading-relaxed text-slate-400">
 				Allows registering or testing custom schemas during offline prototyping.
 			</p>
 		</div>
 
 		{#if schemaRegisterStatus}
 			<div
-				class="rounded-xl border border-emerald-800 bg-emerald-950/40 p-3 text-xs text-emerald-300"
+				role="status"
+				class="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3.5 text-xs text-emerald-200"
 			>
 				{schemaRegisterStatus}
 			</div>
 		{/if}
 		{#if schemaRegisterError}
-			<div class="rounded-xl border border-rose-800 bg-rose-950/40 p-3 text-xs text-rose-300">
+			<div
+				role="alert"
+				class="rounded-xl border border-rose-500/35 bg-rose-500/10 p-3.5 text-xs text-rose-200"
+			>
 				{schemaRegisterError}
 			</div>
 		{/if}
 
-		<div class="space-y-3 text-xs">
+		<div class="space-y-4 text-xs">
 			<div>
-				<label for="schema-json" class="mb-1 block font-semibold text-slate-300">
+				<label for="schema-json" class="mb-1.5 block font-semibold text-slate-300">
 					Content Type Schema JSON
 				</label>
 				<textarea
@@ -335,12 +379,11 @@
 					bind:value={manualSchemaText}
 					rows={5}
 					placeholder={`{\n  "info": { "singularName": "product", "displayName": "Product" },\n  "options": { "draftAndPublish": true },\n  "attributes": { "title": { "type": "string", "required": true } }\n}`}
-					class="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 font-mono text-[11px] text-slate-200 focus:border-indigo-500 focus:outline-none"
-				></textarea>
+					class="df-input p-3.5 font-mono text-[11px] leading-relaxed"></textarea>
 			</div>
 
 			<div>
-				<label for="components-json" class="mb-1 block font-semibold text-slate-300">
+				<label for="components-json" class="mb-1.5 block font-semibold text-slate-300">
 					Components Map JSON (optional)
 				</label>
 				<textarea
@@ -348,18 +391,17 @@
 					bind:value={manualComponentsText}
 					rows={3}
 					placeholder={`{ "default.feature": { "attributes": { "title": { "type": "string" } } } }`}
-					class="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 font-mono text-[11px] text-slate-200 focus:border-indigo-500 focus:outline-none"
-				></textarea>
+					class="df-input p-3.5 font-mono text-[11px] leading-relaxed"></textarea>
 			</div>
 
 			<button
 				type="button"
 				disabled={!manualSchemaText.trim()}
-				class="cursor-pointer rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow transition hover:bg-indigo-500 disabled:opacity-40"
+				class="df-btn-primary w-full px-5 py-2.5 text-xs sm:w-auto"
 				onclick={registerManualSchema}
 			>
 				Register Content Type
 			</button>
 		</div>
-	</div>
+	</section>
 </div>
