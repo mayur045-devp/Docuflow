@@ -1,11 +1,8 @@
 import { redact } from '../security/redact.js';
 import { normalizeStrapiError } from './errors.js';
 import { uploadMedia } from './media.js';
-import {
-	getActiveConnection,
-	buildStrapiEndpointUrl,
-	normalizeStrapiUrl
-} from './connection.js';
+import { strapiNetworkFetch, StrapiDestinationError } from './destination.js';
+import { getActiveConnection, buildStrapiEndpointUrl, normalizeStrapiUrl } from './connection.js';
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_NETWORK_RETRIES = 2;
@@ -49,11 +46,15 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 		const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
 		try {
-			const res = await fetch(url, {
-				...options,
-				headers,
-				signal: controller.signal
-			});
+			const res = await strapiNetworkFetch(
+				url,
+				{
+					...options,
+					headers,
+					signal: controller.signal
+				},
+				strapiUrl
+			);
 
 			clearTimeout(timeoutId);
 			const duration = Date.now() - startTime;
@@ -143,6 +144,7 @@ export async function strapiFetch(pathAndQuery, options = {}) {
 			throw err;
 		} catch (err) {
 			clearTimeout(timeoutId);
+			if (err instanceof StrapiDestinationError) throw err;
 
 			// @ts-ignore
 			if (err?.status && err.status < 500 && err.status !== 429) {

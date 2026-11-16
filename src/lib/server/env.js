@@ -32,6 +32,7 @@ const envSchema = z
 			})
 			.min(1, 'STRAPI_API_TOKEN is required for Strapi CMS communication.'),
 		STRAPI_VERSION: z.enum(['auto', '4', '5']).default('auto'),
+		STRAPI_PRIVATE_IPS: z.string().default(''),
 		STRAPI_ADMIN_EMAIL: z.string().optional().default(''),
 		STRAPI_ADMIN_PASSWORD: z.string().optional().default(''),
 		STRAPI_ADMIN_URL: z.string().optional().default(''),

@@ -93,7 +93,7 @@ npm run fixtures
 npm run dev
 ```
 
-Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD` (default in `.env.example`: `docuflow-secret-password-123`).
+Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD`. Set a unique password and generate a fresh `SESSION_SECRET` before starting the application.
 
 ---
 
@@ -112,7 +112,7 @@ Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD` (de
 | `GEMINI_API_KEY`        | -                              | Required when `AI_PROVIDER=gemini`                                              |
 | `GEMINI_MODEL`          | `gemini-2.5-flash`             | Gemini model name                                                               |
 | `AI_MAX_RETRIES`        | `2`                            | Max validation retry attempts fed back to the LLM                               |
-| `APP_PASSWORD`          | `docuflow-secret-password-123` | Master password to access the DocuFlow UI                                       |
+| `APP_PASSWORD` | Required, no default | Unique password to access the DocuFlow UI |
 | `SESSION_SECRET`        | 32+ characters                 | Random secret used for HMAC-SHA256 session cookie signing                       |
 | `MAX_UPLOAD_MB`         | `10`                           | Maximum uploaded DOCX file size in megabytes                                    |
 | `DATA_DIR`              | `.data`                        | Directory for file-based job storage and extracted images                       |
@@ -212,3 +212,17 @@ Adding a new content type requires **no changes to DocuFlow**:
 3. **Multi-Locale (i18n):** Support selecting a target Strapi locale (`locale=es`, etc.) and mapping localized DOCX variations.
 4. **Batch Import / Bulk Processing:** Enabling multiple `.docx` uploads in a queue with batch approval workflows.
 5. **Strapi Media Library Search:** Allow searching existing Strapi media assets in addition to document-embedded images.
+
+### Session secrets and CMS connections
+
+After pulling the security fixes, generate a new session secret for each environment and set it in your private `.env` or hosting configuration:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(64).toString('hex'))"
+```
+
+Never reuse the previous secret from the smoke script or commit real `.env` files. Restart every server instance after rotating the secret; existing sessions will need to log in again. Smoke tests generate their own temporary session secret.
+
+For public HTTPS Strapi instances, enter the CMS URL and its own API token in Settings, then select **Save & Switch Active Connection**. No URL allowlist or per-CMS `.env` entry is required. A changed base URL always requires an explicitly supplied token; a blank token reuses credentials only for the active base URL. Connections are process-global and kept in memory, and return to the `.env` default after a server restart.
+
+All Strapi requests block redirects, localhost, cloud metadata/link-local endpoints, and unsafe socket DNS results. Use the final HTTPS CMS address. For a legitimate internal/VPN CMS, configure exact exceptions in `STRAPI_PRIVATE_IPS`: a bare IP applies only to `STRAPI_URL`, while `hostname=IP` entries apply only to that named CMS; entries are comma-separated. Internal exceptions never permit loopback or link-local addresses. These network settings require a server restart and should be set separately on each host.

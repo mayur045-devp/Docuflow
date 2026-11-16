@@ -1,9 +1,6 @@
 import crypto from 'node:crypto';
-import {
-	getActiveConnection,
-	buildStrapiEndpointUrl,
-	normalizeStrapiUrl
-} from './connection.js';
+import { strapiNetworkFetch } from './destination.js';
+import { getActiveConnection, buildStrapiEndpointUrl, normalizeStrapiUrl } from './connection.js';
 
 /**
  * Uploads an image buffer to Strapi /api/upload.
@@ -38,11 +35,15 @@ export async function uploadMedia(buffer, info, connection) {
 	}
 
 	const uploadUrl = buildStrapiEndpointUrl(strapiUrl, '/api/upload');
-	const res = await fetch(uploadUrl, {
-		method: 'POST',
-		headers,
-		body: formData
-	});
+	const res = await strapiNetworkFetch(
+		uploadUrl,
+		{
+			method: 'POST',
+			headers,
+			body: formData
+		},
+		strapiUrl
+	);
 
 	if (!res.ok) {
 		const errText = await res.text();

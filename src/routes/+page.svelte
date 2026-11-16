@@ -54,7 +54,11 @@
 		testingConnection = true;
 		errorMessage = '';
 		try {
-			const res = await fetch('/api/strapi/test', { method: 'POST' });
+			const res = await fetch('/api/strapi/test', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: '{}'
+			});
 			const json = await res.json();
 			connectionStatus = json;
 			if (json.success) {
@@ -106,6 +110,7 @@
 				}
 			} else {
 				const errJson = await res.json();
+				strapiUrl = errJson.error?.strapiUrl || strapiUrl;
 				throw new Error(errJson.error?.message || 'Failed to retrieve Strapi schemas');
 			}
 		} catch (err) {

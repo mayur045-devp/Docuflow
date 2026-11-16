@@ -1,5 +1,10 @@
 import crypto from 'node:crypto';
 import { getEnv } from '../env.js';
+import {
+	validateStrapiBaseUrl,
+	strapiNetworkFetch,
+	StrapiDestinationError
+} from './destination.js';
 
 /**
  * Normalizes any valid Strapi base URL safely.
@@ -117,14 +122,31 @@ export function getActiveConnection() {
 }
 
 /**
- * Sets the active Strapi connection dynamically.
- * Automatically normalizes the URL and invalidates all existing caches if the connection changed.
+ * Validates the destination and binds saved credentials to the active base URL.
  *
- * @param {{ strapiUrl: string, apiToken?: string, version?: string }} conn
+ * @param {{ strapiUrl?: string, apiToken?: string }} conn
  */
+export function resolveStrapiConnection({ strapiUrl, apiToken = undefined }) {
+	const active = getActiveConnection();
+	const normalizedUrl = validateStrapiBaseUrl(strapiUrl || active.strapiUrl);
+	if (apiToken !== undefined && typeof apiToken !== 'string') {
+		throw new StrapiDestinationError('The API token must be a string.', 'INVALID_API_TOKEN');
+	}
+	if (normalizedUrl !== active.strapiUrl && !apiToken?.trim()) {
+		throw new StrapiDestinationError(
+			'Enter the API token for the new Strapi environment.',
+			'STRAPI_TOKEN_REQUIRED'
+		);
+	}
+	return {
+		strapiUrl: normalizedUrl,
+		apiToken: apiToken === undefined ? active.apiToken : apiToken
+	};
+}
+
+/** @param {{ strapiUrl: string, apiToken?: string, version?: string }} conn */
 export function setActiveConnection(conn) {
-	const normalizedUrl = normalizeStrapiUrl(conn.strapiUrl);
-	const apiToken = conn.apiToken !== undefined ? conn.apiToken : getActiveConnection().apiToken;
+	const { strapiUrl: normalizedUrl, apiToken } = resolveStrapiConnection(conn);
 	const version = conn.version || 'auto';
 
 	const previousKey = dynamicConnection
@@ -181,8 +203,7 @@ export function resetActiveConnection() {
  *   version?: string,
  *   errorCode: string | null,
  *   message: string,
- *   durationMs: number,
- *   redirectUrl?: string
+ *   durationMs: number
  * }>}
  */
 export async function testStrapiConnection({
@@ -191,60 +212,32 @@ export async function testStrapiConnection({
 	timeoutMs = 8000
 } = {}) {
 	const startTime = Date.now();
-	const active = getActiveConnection();
-	const rawBaseUrl = inputUrl || active.strapiUrl;
-	const token = inputToken !== undefined ? inputToken : active.apiToken;
-	const normalizedUrl = normalizeStrapiUrl(rawBaseUrl);
-
-	let host = 'unknown';
+	let conn;
 	try {
-		host = new URL(normalizedUrl).host;
-	} catch {
-		const duration = Date.now() - startTime;
+		conn = resolveStrapiConnection({ strapiUrl: inputUrl, apiToken: inputToken });
+	} catch (err) {
+		if (!(err instanceof StrapiDestinationError)) throw err;
 		return {
 			success: false,
-			baseUrl: rawBaseUrl,
-			normalizedUrl,
-			status: null,
+			baseUrl: '',
+			normalizedUrl: '',
+			status: 400,
 			authenticated: false,
 			apiReachable: false,
 			schemaDiscoveryAvailable: false,
-			errorCode: 'INVALID_URL',
-			message: `The supplied Strapi URL is not a valid HTTP/HTTPS URL: "${rawBaseUrl}"`,
-			durationMs: duration
+			errorCode: err.code,
+			message: err.message,
+			durationMs: Date.now() - startTime
 		};
 	}
+	const { strapiUrl: normalizedUrl, apiToken: token } = conn;
+	const rawBaseUrl = normalizedUrl;
+
+	const host = new URL(normalizedUrl).host;
 
 	console.log(`[Strapi Connection] Testing connection to Host: ${host}`);
 
-	// 1. Initial redirect check with redirect: 'manual' (Requirement 8)
-	let redirectLocation = null;
-	try {
-		const headRes = await fetch(normalizedUrl, {
-			method: 'GET',
-			redirect: 'manual'
-		});
-		if (headRes.status >= 300 && headRes.status < 400) {
-			redirectLocation = headRes.headers.get('location');
-			// If redirect is to a completely different external host
-			if (redirectLocation) {
-				try {
-					const targetHost = new URL(redirectLocation, normalizedUrl).host;
-					if (targetHost !== host) {
-						console.warn(
-							`[Strapi Connection] Warning: Base URL redirects to a different host: ${targetHost}`
-						);
-					}
-				} catch {
-					// ignore
-				}
-			}
-		}
-	} catch {
-		// Non-fatal, continue to API check
-	}
-
-	// 2. Test Content-Type Builder & Content API
+	// Probe the API directly; redirects are rejected by the network boundary.
 	const ctbUrl = buildStrapiEndpointUrl(normalizedUrl, '/api/content-type-builder/content-types');
 	const headers = new Headers();
 	if (token) {
@@ -255,10 +248,14 @@ export async function testStrapiConnection({
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-		const res = await fetch(ctbUrl, {
-			headers,
-			signal: controller.signal
-		});
+		const res = await strapiNetworkFetch(
+			ctbUrl,
+			{
+				headers,
+				signal: controller.signal
+			},
+			normalizedUrl
+		);
 
 		clearTimeout(timeoutId);
 		const duration = Date.now() - startTime;
@@ -282,7 +279,7 @@ export async function testStrapiConnection({
 					normalizedUrl,
 					'/api/content-type-builder/components'
 				);
-				const compRes = await fetch(compUrl, { headers });
+				const compRes = await strapiNetworkFetch(compUrl, { headers }, normalizedUrl);
 				if (compRes.ok) {
 					const compJson = await compRes.json();
 					componentsCount = compJson.data?.length || 0;
@@ -304,8 +301,7 @@ export async function testStrapiConnection({
 				version: '5',
 				errorCode: null,
 				message: 'Strapi connection successful',
-				durationMs: duration,
-				...(redirectLocation ? { redirectUrl: redirectLocation } : {})
+				durationMs: duration
 			};
 		}
 
@@ -434,6 +430,20 @@ export async function testStrapiConnection({
 	} catch (err) {
 		clearTimeout(timeoutId);
 		const duration = Date.now() - startTime;
+		if (err instanceof StrapiDestinationError) {
+			return {
+				success: false,
+				baseUrl: rawBaseUrl,
+				normalizedUrl,
+				status: 400,
+				authenticated: false,
+				apiReachable: false,
+				schemaDiscoveryAvailable: false,
+				errorCode: err.code,
+				message: err.message,
+				durationMs: duration
+			};
+		}
 		const errStr = err instanceof Error ? err.message : String(err);
 
 		console.log(`[Strapi Connection]`);
@@ -494,4 +504,3 @@ export async function testStrapiConnection({
 		};
 	}
 }
-

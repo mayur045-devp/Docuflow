@@ -1,5 +1,6 @@
 import { getEnv } from '../env.js';
 import { normalizeContentType } from './normalize.js';
+import { strapiNetworkFetch } from '../strapi/destination.js';
 
 let cachedResult = null;
 let cacheExpiresAt = 0;
@@ -31,10 +32,14 @@ export async function loadSchemasFromLiveEndpoint({ forceRefresh = false, timeou
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
 	try {
-		const res = await fetch(`${strapiUrl}/api/docuflow-schemas`, {
-			headers,
-			signal: controller.signal
-		});
+		const res = await strapiNetworkFetch(
+			`${strapiUrl}/api/docuflow-schemas`,
+			{
+				headers,
+				signal: controller.signal
+			},
+			strapiUrl
+		);
 
 		clearTimeout(timeoutId);
 

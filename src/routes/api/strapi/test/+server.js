@@ -1,22 +1,46 @@
 import { json } from '@sveltejs/kit';
+import { z } from 'zod';
 import {
 	testStrapiConnection,
 	setActiveConnection,
-	getActiveConnection
+	resolveStrapiConnection
 } from '$lib/server/strapi/connection.js';
+import { StrapiDestinationError } from '$lib/server/strapi/destination.js';
 
+const inputSchema = z
+	.object({
+		strapiUrl: z.string().min(1).max(2048).optional(),
+		apiToken: z.string().max(8192).optional(),
+		save: z.boolean().default(false)
+	})
+	.strict();
+
+/** @param {{ request: Request }} event */
 export async function POST({ request }) {
-	let body = {};
+	let body;
 	try {
-		body = await request.json();
+		body = inputSchema.parse(await request.json());
 	} catch {
-		body = {};
+		return json(
+			{
+				success: false,
+				errorCode: 'INVALID_REQUEST',
+				message:
+					'Supply a valid connection request with a URL, optional token, and boolean save flag.'
+			},
+			{ status: 400 }
+		);
 	}
 
-	const active = getActiveConnection();
-	const strapiUrl = body.strapiUrl || active.strapiUrl;
-	const apiToken = body.apiToken !== undefined ? body.apiToken : active.apiToken;
-	const shouldSave = Boolean(body.save);
+	let conn;
+	try {
+		conn = resolveStrapiConnection(body);
+	} catch (err) {
+		if (!(err instanceof StrapiDestinationError)) throw err;
+		return json({ success: false, errorCode: err.code, message: err.message }, { status: 400 });
+	}
+	const { strapiUrl, apiToken } = conn;
+	const shouldSave = body.save;
 
 	const result = await testStrapiConnection({
 		strapiUrl,

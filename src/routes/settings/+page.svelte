@@ -2,7 +2,7 @@
 	let { data } = $props();
 
 	let config = $state(data.config);
-	let schemaSource = $state(data.schemaSource);
+
 	let contentTypes = $state(data.contentTypes || []);
 
 	// Dynamic Strapi connection input
@@ -57,7 +57,6 @@
 				if (refreshRes.ok) {
 					const refreshJson = await refreshRes.json();
 					contentTypes = Object.values(refreshJson.contentTypes || {});
-					schemaSource = refreshJson.source;
 				}
 			}
 		} catch (err) {
@@ -102,7 +101,6 @@
 			if (refreshRes.ok) {
 				const refreshJson = await refreshRes.json();
 				contentTypes = Object.values(refreshJson.contentTypes || {});
-				schemaSource = refreshJson.source;
 			}
 		} catch (err) {
 			schemaRegisterError = err instanceof Error ? err.message : 'Invalid JSON format';
@@ -158,8 +156,8 @@
 					Connect to a Strapi Environment
 				</h3>
 				<p class="text-xs leading-relaxed text-slate-400">
-					Enter any valid Strapi base URL and optional API token. Trailing slashes are normalized
-					automatically.
+					Enter your Strapi HTTPS URL and its API token, then save to connect. Use that
+					environment's own token whenever you switch.
 				</p>
 			</div>
 
@@ -179,7 +177,7 @@
 
 				<div>
 					<label for="strapi-token-input" class="mb-1.5 block text-xs font-semibold text-slate-300">
-						API Token (Leave blank to use currently configured token)
+						API Token (Required when switching environments)
 					</label>
 					<input
 						id="strapi-token-input"

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { startMockServer } from './mock-strapi.js';
@@ -30,7 +31,7 @@ async function runSmokeTests() {
 	process.env.STRAPI_API_TOKEN = 'mock-strapi-token-12345';
 	process.env.DATA_DIR = '.data/smoke-test';
 	process.env.APP_PASSWORD = 'docuflow-secret-password-123';
-	process.env.SESSION_SECRET = 'dev_session_secret_key_at_least_32_characters_long_123456';
+	process.env.SESSION_SECRET = crypto.randomBytes(64).toString('hex');
 
 	mockServer = await startMockServer(MOCK_PORT, '5');
 

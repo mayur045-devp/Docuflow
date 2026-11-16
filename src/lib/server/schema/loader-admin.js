@@ -1,5 +1,6 @@
 import { getEnv } from '../env.js';
 import { normalizeContentType } from './normalize.js';
+import { strapiNetworkFetch } from '../strapi/destination.js';
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
@@ -19,11 +20,15 @@ async function getAdminToken(strapiUrl, email, password) {
 		return cachedToken;
 	}
 
-	const res = await fetch(`${strapiUrl}/admin/login`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email, password })
-	});
+	const res = await strapiNetworkFetch(
+		`${strapiUrl}/admin/login`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email, password })
+		},
+		strapiUrl
+	);
 
 	if (!res.ok) {
 		throw new Error(`Admin login failed: ${res.status} ${res.statusText}`);
@@ -49,9 +54,13 @@ async function getAdminToken(strapiUrl, email, password) {
  */
 export async function getAdminInformation(strapiUrl, adminToken) {
 	try {
-		const res = await fetch(`${strapiUrl}/admin/information`, {
-			headers: { Authorization: `Bearer ${adminToken}` }
-		});
+		const res = await strapiNetworkFetch(
+			`${strapiUrl}/admin/information`,
+			{
+				headers: { Authorization: `Bearer ${adminToken}` }
+			},
+			strapiUrl
+		);
 		if (res.ok) {
 			const json = await res.json();
 			return json.data || json;
@@ -91,8 +100,12 @@ export async function loadSchemasFromAdmin({ forceRefresh = false } = {}) {
 
 		// Fetch content-type-builder endpoints
 		const [ctRes, compRes] = await Promise.all([
-			fetch(`${STRAPI_URL}/content-type-builder/content-types`, { headers }),
-			fetch(`${STRAPI_URL}/content-type-builder/components`, { headers })
+			strapiNetworkFetch(
+				`${STRAPI_URL}/content-type-builder/content-types`,
+				{ headers },
+				STRAPI_URL
+			),
+			strapiNetworkFetch(`${STRAPI_URL}/content-type-builder/components`, { headers }, STRAPI_URL)
 		]);
 
 		if (!ctRes.ok || !compRes.ok) {

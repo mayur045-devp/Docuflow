@@ -5,6 +5,8 @@ import {
 	onConnectionChange
 } from './connection.js';
 
+import { strapiNetworkFetch } from './destination.js';
+
 let cachedVersion = null;
 let manualOverride = null;
 
@@ -52,11 +54,8 @@ export async function detectStrapiVersion({ forceRefresh = false, connection = n
 
 	// 1. Probe Content-Type Builder to check schema format
 	try {
-		const ctbUrl = buildStrapiEndpointUrl(
-			strapiUrl,
-			'/api/content-type-builder/content-types'
-		);
-		const ctbRes = await fetch(ctbUrl, { headers });
+		const ctbUrl = buildStrapiEndpointUrl(strapiUrl, '/api/content-type-builder/content-types');
+		const ctbRes = await strapiNetworkFetch(ctbUrl, { headers }, strapiUrl);
 		if (ctbRes.ok) {
 			const json = await ctbRes.json();
 			const items = json.data || [];
@@ -70,7 +69,7 @@ export async function detectStrapiVersion({ forceRefresh = false, connection = n
 					strapiUrl,
 					`/api/${collectionItem.schema.pluralName}?pagination[pageSize]=1`
 				);
-				const entryRes = await fetch(entryUrl, { headers });
+				const entryRes = await strapiNetworkFetch(entryUrl, { headers }, strapiUrl);
 				if (entryRes.ok) {
 					const entryJson = await entryRes.json();
 					const sample = Array.isArray(entryJson.data) ? entryJson.data[0] : entryJson.data;
