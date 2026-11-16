@@ -1,6 +1,5 @@
 import { strapiFetch } from '../client.js';
-import { getEnv } from '../../env.js';
-import { getActiveConnection, normalizeStrapiUrl } from '../connection.js';
+import { getActiveStrapiAdminUrl } from '../connection.js';
 
 export const v4Adapter = {
 	version: '4',
@@ -139,11 +138,7 @@ export const v4Adapter = {
 	 * @param {string} [uid='']
 	 */
 	adminLink(entry, singularName, kind = 'collectionType', uid = '') {
-		const { STRAPI_ADMIN_URL } = getEnv();
-		const conn = getActiveConnection();
-		const base = STRAPI_ADMIN_URL
-			? normalizeStrapiUrl(STRAPI_ADMIN_URL)
-			: `${normalizeStrapiUrl(conn.strapiUrl)}/admin`;
+		const base = getActiveStrapiAdminUrl();
 		const typeUid = uid || `api::${singularName}.${singularName}`;
 		if (kind === 'singleType') {
 			return `${base}/content-manager/singleType/${typeUid}`;

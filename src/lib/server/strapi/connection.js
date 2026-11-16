@@ -144,6 +144,17 @@ export function resolveStrapiConnection({ strapiUrl, apiToken = undefined }) {
 	};
 }
 
+/** Returns the admin base URL belonging to the active CMS environment. */
+export function getActiveStrapiAdminUrl() {
+	const conn = getActiveConnection();
+	const env = getEnv();
+	const base = normalizeStrapiUrl(conn.strapiUrl);
+	if (base === normalizeStrapiUrl(env.STRAPI_URL) && env.STRAPI_ADMIN_URL) {
+		return normalizeStrapiUrl(env.STRAPI_ADMIN_URL);
+	}
+	return `${base}/admin`;
+}
+
 /** @param {{ strapiUrl: string, apiToken?: string, version?: string }} conn */
 export function setActiveConnection(conn) {
 	const { strapiUrl: normalizedUrl, apiToken } = resolveStrapiConnection(conn);
