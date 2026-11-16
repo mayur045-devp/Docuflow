@@ -1,5 +1,12 @@
 import { redirect, json } from '@sveltejs/kit';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '$lib/server/security/auth.js';
+import { building } from '$app/env';
+import { startJobCleanup } from '$lib/server/jobs/retention.js';
+import { beginJobActivity } from '$lib/server/jobs/store.js';
+
+export function init() {
+	if (!building) startJobCleanup();
+}
 
 /** @param {{ event: any, resolve: (event: any) => Promise<Response> }} param0 */
 export async function handle({ event, resolve }) {
@@ -34,7 +41,16 @@ export async function handle({ event, resolve }) {
 		throw redirect(303, '/');
 	}
 
-	const response = await resolve(event);
+	const modifiesJob =
+		['POST', 'PUT', 'PATCH'].includes(event.request.method) &&
+		/^\/api\/jobs\/\[id\]\/(extract|import|review)$/.test(event.route.id || '');
+	const releaseJob = modifiesJob ? beginJobActivity(event.params.id) : null;
+	let response;
+	try {
+		response = await resolve(event);
+	} finally {
+		releaseJob?.();
+	}
 
 	// Security headers
 	response.headers.set('X-Content-Type-Options', 'nosniff');

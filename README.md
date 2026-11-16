@@ -116,7 +116,7 @@ Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD`. Se
 | `SESSION_SECRET`        | 32+ characters                 | Random secret used for HMAC-SHA256 session cookie signing                       |
 | `MAX_UPLOAD_MB`         | `10`                           | Maximum uploaded DOCX file size in megabytes                                    |
 | `DATA_DIR`              | `.data`                        | Directory for file-based job storage and extracted images                       |
-| `JOB_TTL_DAYS`          | `30`                           | Number of days before completed jobs are auto-pruned                            |
+| `JOB_TTL_DAYS` | `10` | Days after upload before local history and processing files are automatically deleted |
 
 ---
 
@@ -223,6 +223,12 @@ node -e "console.log(require('node:crypto').randomBytes(64).toString('hex'))"
 
 Never reuse the previous secret from the smoke script or commit real `.env` files. Restart every server instance after rotating the secret; existing sessions will need to log in again. Smoke tests generate their own temporary session secret.
 
-For public HTTPS Strapi instances, enter the CMS URL and its own API token in Settings, then select **Save & Switch Active Connection**. No URL allowlist or per-CMS `.env` entry is required. A changed base URL always requires an explicitly supplied token; a blank token reuses credentials only for the active base URL. Connections are process-global and kept in memory, and return to the `.env` default after a server restart.
+For public or internal HTTPS Strapi instances, enter the CMS URL and its own API token in Settings, then select **Save & Switch Active Connection**. No URL allowlist or per-CMS `.env` entry is required. A changed base URL always requires an explicitly supplied token; a blank token reuses credentials only for the active base URL. Connections are process-global and kept in memory, and return to the `.env` default after a server restart.
 
-All Strapi requests block redirects, localhost, cloud metadata/link-local endpoints, and unsafe socket DNS results. Use the final HTTPS CMS address. For a legitimate internal/VPN CMS, configure exact exceptions in `STRAPI_PRIVATE_IPS`: a bare IP applies only to `STRAPI_URL`, while `hostname=IP` entries apply only to that named CMS; entries are comma-separated. Internal exceptions never permit loopback or link-local addresses. These network settings require a server restart and should be set separately on each host.
+Logged-in operators can connect to public and private/internal CMS addresses using the URL and that CMS's own token. No private-IP environment entries are required. The DocuFlow server must be able to reach the CMS network, and the CMS must have a valid HTTPS certificate. This intentionally permits authenticated operators to contact internal network services; an API token is not proof that a destination is a CMS. Keep access to DocuFlow restricted to trusted operators. Requests still block redirects, localhost/loopback, cloud metadata, link-local and other reserved endpoints at the actual socket DNS lookup. Use the final HTTPS CMS address.
+
+### History retention and deletion
+
+History entries and their original documents, images, extraction data, review data, and result files expire 10 days after upload by default (`JOB_TTL_DAYS=10`). Cleanup runs when the server initializes, every minute while it is running, and when history is listed. If the server is stopped, expired files are removed when it starts again. Production builds do not run cleanup.
+
+The History page includes a one-click Delete button on desktop and mobile. It permanently removes that job folder immediately; imported Strapi records/media are kept. Active uploads, extractions, reviews, and imports are protected from deletion until processing finishes. This activity tracking applies to this single server process, matching the existing file-based deployment model. The page refreshes visible history every minute. Backups have their own retention and are not deleted by this feature.

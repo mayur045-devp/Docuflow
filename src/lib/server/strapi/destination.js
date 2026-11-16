@@ -17,6 +17,7 @@ for (const [address, prefix] of [
 	['10.0.0.0', 8],
 	['100.64.0.0', 10],
 	['127.0.0.0', 8],
+	['168.63.129.16', 32],
 	['169.254.0.0', 16],
 	['172.16.0.0', 12],
 	['192.0.0.0', 24],
@@ -45,30 +46,18 @@ privateNetworks.addSubnet('172.16.0.0', 12, 'ipv4');
 privateNetworks.addSubnet('192.168.0.0', 16, 'ipv4');
 privateNetworks.addSubnet('fc00::', 7, 'ipv6');
 
-// Exceptions are exact hostname/IP pairs configured by the administrator.
-// Loopback, link-local/metadata and other reserved IPs stay blocked.
-export function isAllowedStrapiAddress(hostname, address) {
+const blockedPrivateTargets = new BlockList();
+blockedPrivateTargets.addAddress('fd00:ec2::254', 'ipv6');
+
+// Logged-in operators can connect to public and internal CMS instances.
+// Loopback, link-local/metadata and other reserved targets stay blocked.
+export function isAllowedStrapiAddress(_hostname, address) {
 	if (isPublicAddress(address)) return true;
 	const family = isIP(address);
 	if (!family) return false;
 	const kind = family === 4 ? 'ipv4' : 'ipv6';
-	if (!privateNetworks.check(address, kind)) return false;
-	const env = getEnv();
-	const defaultHostname = new URL(env.STRAPI_URL).hostname.replace(/^\[|\]$/g, '');
-	const approved = new BlockList();
-	for (const entry of env.STRAPI_PRIVATE_IPS.split(',')
-		.map((value) => value.trim())
-		.filter(Boolean)) {
-		// Bare IPs apply only to STRAPI_URL; hostname=IP supports an explicitly
-		// approved additional environment without sharing its network exception.
-		const [entryHostname, ip] = entry.includes('=')
-			? entry.split('=').map((value) => value.trim())
-			: [defaultHostname, entry];
-		if (entryHostname.toLowerCase() !== hostname.toLowerCase()) continue;
-		const ipFamily = isIP(ip);
-		if (ipFamily) approved.addAddress(ip, ipFamily === 4 ? 'ipv4' : 'ipv6');
-	}
-	return approved.check(address, kind);
+	if (family === 6 && blockedPrivateTargets.check(address, 'ipv6')) return false;
+	return privateNetworks.check(address, kind);
 }
 
 export function isPublicAddress(address) {
@@ -94,7 +83,7 @@ export const publicLookup = (hostname, options, callback) => {
 			) {
 				return callback(
 					new StrapiDestinationError(
-						'The CMS resolves to a blocked network address. For an internal CMS, configure its exact IP in STRAPI_PRIVATE_IPS on the server.'
+						'The CMS resolves to a blocked loopback, metadata, link-local, or reserved network address.'
 					),
 					''
 				);
@@ -126,15 +115,15 @@ function canonicalBaseUrl(rawUrl) {
 			'Strapi URLs must use HTTPS and contain no credentials, query, or fragment.'
 		);
 	}
-	const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+	const hostname = parsed.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '');
 	if (
 		hostname === 'localhost' ||
 		hostname.endsWith('.localhost') ||
-		hostname.endsWith('.local') ||
-		hostname.endsWith('.internal') ||
 		(isIP(hostname) && !isAllowedStrapiAddress(hostname, hostname))
 	)
-		throw new StrapiDestinationError('Private and local Strapi addresses are not allowed.');
+		throw new StrapiDestinationError(
+			'Loopback, metadata, link-local, and reserved Strapi addresses are not allowed.'
+		);
 	return `${parsed.origin}${parsed.pathname.replace(/\/+/g, '/').replace(/\/+$/, '')}`;
 }
 

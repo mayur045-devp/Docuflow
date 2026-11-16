@@ -32,7 +32,6 @@ const envSchema = z
 			})
 			.min(1, 'STRAPI_API_TOKEN is required for Strapi CMS communication.'),
 		STRAPI_VERSION: z.enum(['auto', '4', '5']).default('auto'),
-		STRAPI_PRIVATE_IPS: z.string().default(''),
 		STRAPI_ADMIN_EMAIL: z.string().optional().default(''),
 		STRAPI_ADMIN_PASSWORD: z.string().optional().default(''),
 		STRAPI_ADMIN_URL: z.string().optional().default(''),
@@ -46,7 +45,7 @@ const envSchema = z
 		SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters long'),
 		MAX_UPLOAD_MB: z.coerce.number().positive().default(10),
 		DATA_DIR: z.string().default('.data'),
-		JOB_TTL_DAYS: z.coerce.number().positive().default(30)
+		JOB_TTL_DAYS: z.coerce.number().positive().default(10)
 	})
 	.superRefine((data, ctx) => {
 		if (data.AI_PROVIDER === 'gemini' && !data.GEMINI_API_KEY) {

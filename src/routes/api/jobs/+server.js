@@ -2,7 +2,13 @@ import { json } from '@sveltejs/kit';
 import { uploadLimiter } from '$lib/server/security/rate-limit.js';
 import { validateDocx } from '$lib/server/security/docx-guard.js';
 import { parseDocx } from '$lib/server/document/parser.js';
-import { createJob, saveParsedDocument, updateJobState, listJobs } from '$lib/server/jobs/store.js';
+import {
+	createJob,
+	saveParsedDocument,
+	updateJobState,
+	listJobs,
+	beginJobActivity
+} from '$lib/server/jobs/store.js';
 import { getContentTypeSchema } from '$lib/server/schema/resolve.js';
 
 export async function GET() {
@@ -94,6 +100,7 @@ export async function POST({ request, getClientAddress }) {
 
 	// 3. Parse DOCX into DocumentModel
 	let docModel;
+	const releaseJob = beginJobActivity(job.id);
 	try {
 		docModel = await parseDocx(buffer);
 		saveParsedDocument(job.id, docModel);
@@ -109,6 +116,8 @@ export async function POST({ request, getClientAddress }) {
 			},
 			{ status: 500 }
 		);
+	} finally {
+		releaseJob();
 	}
 
 	const documentSummary = {

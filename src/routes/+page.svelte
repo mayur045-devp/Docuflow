@@ -646,42 +646,6 @@
 							</div>
 						</div>
 
-						<!-- Structural Summary Stats -->
-						<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-							<div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center">
-								<div
-									class="bg-[image:linear-gradient(to_bottom,#ffffff,#b5a9ff)] bg-clip-text font-['Outfit','Inter',sans-serif] text-3xl font-semibold text-transparent tabular-nums"
-								>
-									{uploadedJob.documentSummary?.totalBlocks}
-								</div>
-								<div class="mt-1 text-xs font-medium text-slate-400">Total Blocks</div>
-							</div>
-							<div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center">
-								<div
-									class="bg-[image:linear-gradient(to_bottom,#ffffff,#b5a9ff)] bg-clip-text font-['Outfit','Inter',sans-serif] text-3xl font-semibold text-transparent tabular-nums"
-								>
-									{uploadedJob.documentSummary?.headingCount}
-								</div>
-								<div class="mt-1 text-xs font-medium text-slate-400">Headings</div>
-							</div>
-							<div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center">
-								<div
-									class="bg-[image:linear-gradient(to_bottom,#ffffff,#b5a9ff)] bg-clip-text font-['Outfit','Inter',sans-serif] text-3xl font-semibold text-transparent tabular-nums"
-								>
-									{uploadedJob.documentSummary?.tableCount}
-								</div>
-								<div class="mt-1 text-xs font-medium text-slate-400">Tables</div>
-							</div>
-							<div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center">
-								<div
-									class="bg-[image:linear-gradient(to_bottom,#ffffff,#b5a9ff)] bg-clip-text font-['Outfit','Inter',sans-serif] text-3xl font-semibold text-transparent tabular-nums"
-								>
-									{uploadedJob.documentSummary?.imageCount}
-								</div>
-								<div class="mt-1 text-xs font-medium text-slate-400">Embedded Images</div>
-							</div>
-						</div>
-
 						{#if uploadedJob.warnings && uploadedJob.warnings.length > 0}
 							<div
 								class="space-y-1.5 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-200"

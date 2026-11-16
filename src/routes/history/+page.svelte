@@ -1,6 +1,42 @@
 <script>
+	import { onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
+
 	let { data } = $props();
-	let jobs = $derived(data.jobs || []);
+	let deletedIds = $state([]);
+	let deletingIds = $state([]);
+	let deleteError = $state('');
+	let deleteMessage = $state('');
+	let jobs = $derived((data.jobs || []).filter((job) => !deletedIds.includes(job.id)));
+
+	onMount(() => {
+		const timer = setInterval(() => {
+			if (document.visibilityState === 'visible') invalidateAll().catch(() => {});
+		}, 60 * 1000);
+		return () => clearInterval(timer);
+	});
+
+	async function removeJob(job) {
+		if (deletingIds.includes(job.id)) return;
+		deletingIds = [...deletingIds, job.id];
+		deleteError = '';
+		deleteMessage = '';
+		try {
+			const response = await fetch(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' });
+			if (!response.ok && response.status !== 404) {
+				const result = await response.json();
+				throw new Error(result.error?.message || 'Could not delete this history entry.');
+			}
+			deletedIds = [...deletedIds, job.id];
+			deleteMessage = `Deleted ${job.originalFilename} and its saved processing files.`;
+			// The row is already removed; refresh duplicate flags and other jobs when possible.
+			invalidateAll().catch(() => {});
+		} catch (err) {
+			deleteError = err instanceof Error ? err.message : 'Could not delete this history entry.';
+		} finally {
+			deletingIds = deletingIds.filter((id) => id !== job.id);
+		}
+	}
 
 	function formatDate(iso) {
 		if (!iso) return '-';
@@ -34,9 +70,24 @@
 			<p class="text-xs leading-relaxed text-slate-400 sm:text-sm">
 				Audit log of all uploaded documents, extraction jobs, and Strapi CMS imports.
 			</p>
+			<p class="text-xs leading-relaxed text-slate-400">
+				History and saved files are automatically deleted {data.retentionDays} days after upload. Delete
+				removes them immediately. Imported Strapi content is kept.
+			</p>
 		</div>
 		<a href="/" class="df-btn-primary w-full px-4 py-2 text-xs sm:w-auto"> + New Import </a>
 	</div>
+	{#if deleteError}
+		<p
+			role="alert"
+			class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300"
+		>
+			{deleteError}
+		</p>
+	{/if}
+	{#if deleteMessage}
+		<p role="status" class="text-sm text-emerald-300">{deleteMessage}</p>
+	{/if}
 
 	<div class="df-card overflow-hidden">
 		{#if jobs.length === 0}
@@ -149,6 +200,18 @@
 										>
 											View
 										</a>
+										<button
+											type="button"
+											onclick={() => removeJob(job)}
+											disabled={job.busy || deletingIds.includes(job.id)}
+											aria-label={`Delete history for ${job.originalFilename}`}
+											title={job.busy
+												? 'Wait for processing to finish'
+												: 'Permanently delete this history entry and saved files'}
+											class="min-h-[30px] cursor-pointer rounded-lg border border-rose-500/30 px-3 py-1 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											{deletingIds.includes(job.id) ? 'Deleting...' : 'Delete'}
+										</button>
 									</div>
 								</td>
 							</tr>
@@ -207,6 +270,18 @@
 
 						<div class="flex items-center gap-2 pt-1">
 							<a href={`/jobs/${job.id}`} class="df-btn-secondary flex-1 py-1.5 text-xs"> View </a>
+							<button
+								type="button"
+								onclick={() => removeJob(job)}
+								disabled={job.busy || deletingIds.includes(job.id)}
+								aria-label={`Delete history for ${job.originalFilename}`}
+								title={job.busy
+									? 'Wait for processing to finish'
+									: 'Permanently delete this history entry and saved files'}
+								class="flex-1 cursor-pointer rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{deletingIds.includes(job.id) ? 'Deleting...' : 'Delete'}
+							</button>
 							{#if job.strapiAdminUrl}
 								<a
 									href={job.strapiAdminUrl}

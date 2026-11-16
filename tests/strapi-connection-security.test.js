@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const env = vi.hoisted(() => ({
 	STRAPI_URL: 'https://cms.example.com',
 	STRAPI_API_TOKEN: 'saved-test-token',
-	STRAPI_VERSION: '5',
-	STRAPI_PRIVATE_IPS: ''
+	STRAPI_VERSION: '5'
 }));
 vi.mock('../src/lib/server/env.js', () => ({ getEnv: () => env }));
 
@@ -61,7 +60,9 @@ describe('Strapi token isolation and URL validation', () => {
 		'https://other.example.com',
 		'https://cms.example.com.attacker.example.com',
 		'https://cms.example.com/another-base',
-		'https://cms.example.com:8443'
+		'https://cms.example.com:8443',
+		'https://10.1.10.84',
+		'https://cms.internal'
 	])('does not send the saved token to changed URL %s', async (strapiUrl) => {
 		const response = await POST(request({ strapiUrl, save: true }));
 		expect(response.status).toBe(400);
@@ -103,6 +104,21 @@ describe('Strapi token isolation and URL validation', () => {
 		expect((await POST(request({}))).status).toBe(200);
 	});
 
+	it.each(['https://10.1.10.84', 'https://cms.internal', 'https://cms.local'])(
+		'accepts internal CMS URL %s with its own token and no environment entry',
+		async (strapiUrl) => {
+			const response = await POST(
+				request({ strapiUrl, apiToken: 'internal-test-token', save: true })
+			);
+			expect(response.status).toBe(200);
+			for (const [, options] of vi.mocked(fetch).mock.calls) {
+				expect(new Headers(options.headers).get('Authorization')).toBe(
+					'Bearer internal-test-token'
+				);
+			}
+		}
+	);
+
 	it.each([
 		'http://cms.example.com',
 		'https://127.1',
@@ -111,7 +127,6 @@ describe('Strapi token isolation and URL validation', () => {
 		'https://[::ffff:127.0.0.1]',
 		'https://169.254.169.254',
 		'https://localhost',
-		'https://cms.local',
 		'https://user:password@cms.example.com',
 		'https://cms.example.com?redirect=https://other.example.com',
 		'https://cms.example.com#fragment',
@@ -165,11 +180,8 @@ describe('Strapi token isolation and URL validation', () => {
 	});
 });
 
-describe('Socket DNS and internal CMS exceptions', () => {
-	afterEach(() => {
-		env.STRAPI_PRIVATE_IPS = '';
-		vi.restoreAllMocks();
-	});
+describe('Socket DNS and internal CMS access', () => {
+	afterEach(() => vi.restoreAllMocks());
 
 	it.each([
 		'0.0.0.0',
@@ -196,25 +208,38 @@ describe('Socket DNS and internal CMS exceptions', () => {
 		expect(isPublicAddress(address)).toBe(true)
 	);
 
-	it('keeps internal IP exceptions scoped to their hostname and exact IP', () => {
-		env.STRAPI_PRIVATE_IPS = '10.20.30.40,other.example.com=10.20.30.50';
-		expect(isAllowedStrapiAddress('cms.example.com', '10.20.30.40')).toBe(true);
-		expect(isAllowedStrapiAddress('other.example.com', '10.20.30.50')).toBe(true);
-		expect(isAllowedStrapiAddress('other.example.com', '10.20.30.40')).toBe(false);
-		expect(isAllowedStrapiAddress('cms.example.com', '10.20.30.50')).toBe(false);
-		expect(isAllowedStrapiAddress('attacker.example.com', '10.20.30.50')).toBe(false);
-		expect(isAllowedStrapiAddress('other.example.com', '10.20.30.51')).toBe(false);
-	});
-
-	it.each(['127.0.0.1', '169.254.169.254', '::1', 'fe80::1', '0.0.0.0'])(
-		'never allows dangerous IP %s even in configuration',
+	it.each(['10.1.10.84', '172.16.0.20', '192.168.1.20', 'fd12:3456::20'])(
+		'allows internal CMS address %s without environment entries',
 		(address) => {
-			env.STRAPI_PRIVATE_IPS = address;
-			expect(isAllowedStrapiAddress('cms.example.com', address)).toBe(false);
+			expect(isAllowedStrapiAddress('new-cms.example.com', address)).toBe(true);
 		}
 	);
 
-	it('rejects mixed public/private DNS responses', async () => {
+	it.each([
+		'127.0.0.1',
+		'169.254.169.254',
+		'::1',
+		'fe80::1',
+		'0.0.0.0',
+		'fd00:ec2::254',
+		'168.63.129.16'
+	])('never allows dangerous IP %s', (address) => {
+		expect(isAllowedStrapiAddress('cms.example.com', address)).toBe(false);
+	});
+
+	it('passes an internal CMS DNS result directly to the socket without configuration', async () => {
+		vi.spyOn(dns, 'lookup').mockImplementation((_hostname, _options, callback) =>
+			callback(null, [{ address: '10.1.10.84', family: 4 }])
+		);
+		const result = await new Promise((resolve) =>
+			publicLookup('new-cms.example.com', { all: true }, (error, addresses) =>
+				resolve({ error, addresses })
+			)
+		);
+		expect(result).toEqual({ error: null, addresses: [{ address: '10.1.10.84', family: 4 }] });
+	});
+
+	it('rejects DNS responses containing a loopback address', async () => {
 		vi.spyOn(dns, 'lookup').mockImplementation((_hostname, _options, callback) =>
 			callback(null, [
 				{ address: '8.8.8.8', family: 4 },
@@ -227,7 +252,7 @@ describe('Socket DNS and internal CMS exceptions', () => {
 		expect(error).toMatchObject({ code: 'UNSAFE_STRAPI_DESTINATION' });
 	});
 
-	it('rejects private DNS at the actual socket lookup before opening a connection', async () => {
+	it('rejects loopback DNS at the actual socket lookup before opening a connection', async () => {
 		const lookup = vi
 			.spyOn(dns, 'lookup')
 			.mockImplementation((_hostname, _options, callback) =>

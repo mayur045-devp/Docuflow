@@ -4,6 +4,28 @@ import crypto from 'node:crypto';
 import { getEnv } from '../env.js';
 import { assertTransition } from './state-machine.js';
 
+const activeJobs = new Map();
+
+export class JobBusyError extends Error {
+	constructor() {
+		super('This job is being processed. Try deleting it again when processing finishes.');
+		this.name = 'JobBusyError';
+	}
+}
+
+/** Marks work across asynchronous requests so deletion cannot interrupt it. */
+export function beginJobActivity(jobId) {
+	activeJobs.set(jobId, (activeJobs.get(jobId) || 0) + 1);
+	let released = false;
+	return () => {
+		if (released) return;
+		released = true;
+		const remaining = (activeJobs.get(jobId) || 1) - 1;
+		if (remaining) activeJobs.set(jobId, remaining);
+		else activeJobs.delete(jobId);
+	};
+}
+
 function getJobsDir() {
 	const { DATA_DIR } = getEnv();
 	const dir = path.resolve(DATA_DIR, 'jobs');
@@ -235,6 +257,7 @@ export function getJobImage(jobId, imageId) {
  * @returns {any[]}
  */
 export function listJobs() {
+	cleanupExpiredJobs();
 	const jobsDir = getJobsDir();
 	if (!fs.existsSync(jobsDir)) return [];
 
@@ -245,7 +268,7 @@ export function listJobs() {
 		if (entry.isDirectory()) {
 			const meta = getJob(entry.name);
 			if (meta) {
-				jobs.push(meta);
+				jobs.push({ ...meta, busy: activeJobs.has(entry.name) });
 			}
 		}
 	}
@@ -264,27 +287,55 @@ export function listJobs() {
 	return jobs;
 }
 
-/**
- * Auto-deletes jobs older than JOB_TTL_DAYS.
- */
+/** Permanently removes one job folder, confined to the configured jobs directory. */
+export function deleteJob(jobId) {
+	if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(jobId)) {
+		throw new Error('Invalid job ID.');
+	}
+	if (activeJobs.has(jobId)) throw new JobBusyError();
+	const root = getJobsDir();
+	const target = path.resolve(root, jobId);
+	if (path.dirname(target) !== root) throw new Error('Invalid job path.');
+	let entry;
+	try {
+		entry = fs.lstatSync(target);
+	} catch (err) {
+		if (err.code === 'ENOENT') return false;
+		throw err;
+	}
+	if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error('Invalid job directory.');
+	const realRoot = fs.realpathSync(root);
+	const realTarget = fs.realpathSync(target);
+	if (path.dirname(realTarget) !== realRoot) throw new Error('Job directory is outside storage.');
+	fs.rmSync(realTarget, { recursive: true, force: true });
+	return true;
+}
+
+/** Deletes expired jobs by upload time, deferring work currently in progress. */
 export function cleanupExpiredJobs() {
 	const { JOB_TTL_DAYS } = getEnv();
 	const jobsDir = getJobsDir();
-	if (!fs.existsSync(jobsDir)) return;
+	if (!fs.existsSync(jobsDir)) return 0;
 
 	const now = Date.now();
 	const maxAgeMs = JOB_TTL_DAYS * 24 * 60 * 60 * 1000;
+	let deleted = 0;
 
 	const entries = fs.readdirSync(jobsDir, { withFileTypes: true });
 	for (const entry of entries) {
-		if (entry.isDirectory()) {
+		if (entry.isDirectory() && !activeJobs.has(entry.name)) {
 			const meta = getJob(entry.name);
 			if (meta && meta.createdAt) {
 				const age = now - new Date(meta.createdAt).getTime();
-				if (age > maxAgeMs) {
-					fs.rmSync(path.join(jobsDir, entry.name), { recursive: true, force: true });
+				if (age >= maxAgeMs) {
+					try {
+						if (deleteJob(entry.name)) deleted += 1;
+					} catch (err) {
+						console.error(`[DocuFlow] Could not clean up job ${entry.name}:`, err);
+					}
 				}
 			}
 		}
 	}
+	return deleted;
 }
