@@ -43,7 +43,7 @@ const envSchema = z
 
 		APP_PASSWORD: z.string().min(1, 'APP_PASSWORD is required for security'),
 		SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters long'),
-		MAX_UPLOAD_MB: z.coerce.number().positive().default(10),
+		MAX_UPLOAD_MB: z.coerce.number().positive().default(100),
 		DATA_DIR: z.string().default('.data'),
 		JOB_TTL_DAYS: z.coerce.number().positive().default(10)
 	})

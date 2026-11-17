@@ -34,7 +34,21 @@ export async function POST({ request, getClientAddress }) {
 	let formData;
 	try {
 		formData = await request.formData();
-	} catch (_err) {
+	} catch (err) {
+		// The Node adapter reports oversized bodies while formData() reads the stream.
+		// Preserve that status instead of misreporting a valid upload as malformed.
+		if (err && typeof err === 'object' && 'status' in err && err.status === 413) {
+			return json(
+				{
+					error: {
+						code: 'PAYLOAD_TOO_LARGE',
+						message:
+							'The upload exceeds the server request size limit. Try a smaller document or ask the administrator to increase BODY_SIZE_LIMIT.'
+					}
+				},
+				{ status: 413 }
+			);
+		}
 		return json(
 			{ error: { code: 'INVALID_FORM_DATA', message: 'Malformed multipart form data' } },
 			{ status: 400 }

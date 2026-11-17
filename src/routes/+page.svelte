@@ -502,7 +502,7 @@
 											browse
 										</span>
 									</div>
-									<p class="mt-1.5 text-xs text-slate-500">Standard .docx documents up to 10 MB</p>
+									<p class="mt-1.5 text-xs text-slate-500">Standard .docx documents up to 100 MB</p>
 								{/if}
 
 								<input

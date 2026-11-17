@@ -58,7 +58,7 @@ export async function handle({ event, resolve }) {
 	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 	response.headers.set(
 		'Content-Security-Policy',
-		"default-src 'self'; img-src 'self' data: blob: docimg:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self';"
+		"default-src 'self'; img-src 'self' data: blob: docimg:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self';"
 	);
 
 	return response;

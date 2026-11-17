@@ -95,6 +95,24 @@ npm run dev
 
 Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD`. Set a unique password and generate a fresh `SESSION_SECRET` before starting the application.
 
+### Production deployment
+
+Use Node.js 24, run `npm run build`, and set the hosting start command to `npm start`.
+This loads `.env` before the Node adapter starts and defaults the HTTP request limit
+to `MAX_UPLOAD_MB` plus 1 MB for multipart overhead (101 MB for the default 100 MB files).
+Hosting environment variables take precedence over `.env`.
+
+If the host starts the build directly with `node build`, configure `BODY_SIZE_LIMIT=101M`
+in the hosting environment before starting Node. Setting it inside application hooks
+is too late: the adapter reads it during startup. When increasing `MAX_UPLOAD_MB`,
+also increase any explicit `BODY_SIZE_LIMIT` and reverse proxy upload limit. For
+Nginx with the default file limit, use `client_max_body_size 101m;` in the applicable
+server/location configuration and reload Nginx.
+
+An upload that exceeds the adapter's limit returns HTTP 413. A genuinely malformed
+multipart request returns HTTP 400. The browser must generate the multipart
+`Content-Type` boundary; do not set that header manually when sending `FormData`.
+
 ---
 
 ## 4. Environment Configuration (`.env`)
@@ -114,7 +132,7 @@ Visit `http://localhost:5173` and log in with your configured `APP_PASSWORD`. Se
 | `AI_MAX_RETRIES`        | `2`                            | Max validation retry attempts fed back to the LLM                               |
 | `APP_PASSWORD` | Required, no default | Unique password to access the DocuFlow UI |
 | `SESSION_SECRET`        | 32+ characters                 | Random secret used for HMAC-SHA256 session cookie signing                       |
-| `MAX_UPLOAD_MB`         | `10`                           | Maximum uploaded DOCX file size in megabytes                                    |
+| `MAX_UPLOAD_MB`         | `100`                           | Maximum uploaded DOCX file size in megabytes                                    |
 | `DATA_DIR`              | `.data`                        | Directory for file-based job storage and extracted images                       |
 | `JOB_TTL_DAYS` | `10` | Days after upload before local history and processing files are automatically deleted |
 
