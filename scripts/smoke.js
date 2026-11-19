@@ -20,7 +20,7 @@ import { buildStrapiPayload } from '../src/lib/server/mapping/build-payload.js';
 
 const MOCK_PORT = 1338;
 let mockServer;
-
+//just checking
 async function runSmokeTests() {
 	console.log('\n=============================================');
 	console.log('       DocuFlow End-to-End Smoke Test        ');
